@@ -468,9 +468,18 @@ export default function Home() {
               }`}
             >
               <input
+  id="camera-upload"
   type="file"
   accept="image/*"
   capture="environment"
+  className="hidden"
+  onChange={(e) => handleFile(e.target.files?.[0])}
+/>
+
+<input
+  id="gallery-upload"
+  type="file"
+  accept="image/*"
   className="hidden"
   onChange={(e) => handleFile(e.target.files?.[0])}
 />
@@ -499,6 +508,21 @@ export default function Home() {
                     <br />
                     AI가 내용을 분석할 준비를 합니다.
                   </p>
+                  <div className="mt-6 grid w-full grid-cols-2 gap-3">
+  <label
+    htmlFor="camera-upload"
+    className="rounded-2xl bg-gray-900 px-4 py-3 text-sm font-bold text-white"
+  >
+    카메라로 촬영
+  </label>
+
+  <label
+    htmlFor="gallery-upload"
+    className="rounded-2xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-700"
+  >
+    사진첩에서 선택
+  </label>
+</div>
                 </>
               )}
             </label>
