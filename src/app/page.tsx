@@ -13,6 +13,8 @@ type Certificate = {
   category: string;
   certificateNumber: string;
   imageUrl?: string;
+
+  extraData?: any;
 };
 
 const mockCertificates: Certificate[] = [
@@ -194,6 +196,7 @@ export default function Home() {
       expiry_date: form.expiryDate || null,
       category: form.category || "기타",
       image_url: imageUrl,
+      extra_data: {},
     });
 
     if (error) {
