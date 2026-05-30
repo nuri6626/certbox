@@ -13,48 +13,39 @@ type Certificate = {
   category: string;
   certificateNumber: string;
   imageUrl?: string;
-
+  score?: string;
+  grade?: string;
   extraData?: any;
 };
 
-const mockCertificates: Certificate[] = [
-  {
-    id: 1,
-    title: "정보처리기사",
-    issuer: "한국산업인력공단",
-    holderName: "홍길동",
-    issueDate: "2025-04-12",
-    expiryDate: "",
-    category: "국가자격증",
-    certificateNumber: "",
-  },
-  {
-    id: 2,
-    title: "AI 창업교육 수료증",
-    issuer: "울산창조경제혁신센터",
-    holderName: "이누리",
-    issueDate: "2026-05-01",
-    expiryDate: "2027-05-01",
-    category: "수료증",
-    certificateNumber: "CERT-2026-001",
-  },
-];
+const mockCertificates: Certificate[] = [];
 
 const mockOcrResult = {
-  title: "AI 창업교육 수료증",
-  issuer: "울산창조경제혁신센터",
-  holderName: "이누리",
-  issueDate: "2026-05-01",
-  expiryDate: "2027-05-01",
-  certificateNumber: "CERT-2026-001",
-  category: "수료증",
+  title: "",
+  issuer: "",
+  holderName: "",
+  issueDate: "",
+  expiryDate: "",
+  certificateNumber: "",
+  category: "기타",
+  score: "",
+  grade: "",
 };
 
-const categoryOptions = ["자격증", "수료증", "이수증", "상장", "민간자격", "기타"];
+const categoryOptions = [
+  "자격증",
+  "수료증",
+  "이수증",
+  "상장",
+  "어학성적",
+  "민간자격",
+  "기타",
+];
 
 export default function Home() {
   const [screen, setScreen] =
     useState<"home" | "upload" | "result" | "detail">("home");
+
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -74,7 +65,10 @@ export default function Home() {
     expiryDate: "",
     certificateNumber: "",
     category: "기타",
+    score: "",
+    grade: "",
   });
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
 
@@ -98,7 +92,10 @@ export default function Home() {
       expiryDate: item.expiry_date || "",
       category: item.category || "기타",
       certificateNumber: item.certificate_number || "",
+      score: item.score || "",
+      grade: item.grade || "",
       imageUrl: item.image_url || "",
+      extraData: item.extra_data || {},
     }));
 
     setCertificates(mappedData);
@@ -151,6 +148,8 @@ export default function Home() {
         expiryDate: data.expiryDate || "",
         certificateNumber: data.certificateNumber || "",
         category: data.category || "기타",
+        score: data.score || "",
+        grade: data.grade || "",
       });
 
       setScreen("result");
@@ -188,13 +187,15 @@ export default function Home() {
     }
 
     const { error } = await supabase.from("certificates").insert({
-      certificate_number: form.certificateNumber,
       title: form.title,
       issuer: form.issuer,
       holder_name: form.holderName,
       issue_date: form.issueDate || null,
       expiry_date: form.expiryDate || null,
+      certificate_number: form.certificateNumber,
       category: form.category || "기타",
+      score: form.score || "",
+      grade: form.grade || "",
       image_url: imageUrl,
       extra_data: {},
     });
@@ -206,9 +207,11 @@ export default function Home() {
     }
 
     await loadCertificates();
+
     setPreview(null);
     setImageBase64(null);
     setSelectedFile(null);
+    setForm(mockOcrResult);
     setScreen("home");
   };
 
@@ -245,45 +248,49 @@ export default function Home() {
       expiryDate: selectedCertificate.expiryDate,
       certificateNumber: selectedCertificate.certificateNumber,
       category: selectedCertificate.category || "기타",
+      score: selectedCertificate.score || "",
+      grade: selectedCertificate.grade || "",
     });
 
     setIsEditing(true);
   };
 
- const handleUpdate = async () => {
-  if (!selectedCertificate) return;
+  const handleUpdate = async () => {
+    if (!selectedCertificate) return;
 
-  const { error } = await supabase
-    .from("certificates")
-    .update({
-      title: editForm.title,
-      issuer: editForm.issuer,
-      holder_name: editForm.holderName,
-      issue_date: editForm.issueDate || null,
-      expiry_date: editForm.expiryDate || null,
-      certificate_number: editForm.certificateNumber,
+    const { error } = await supabase
+      .from("certificates")
+      .update({
+        title: editForm.title,
+        issuer: editForm.issuer,
+        holder_name: editForm.holderName,
+        issue_date: editForm.issueDate || null,
+        expiry_date: editForm.expiryDate || null,
+        certificate_number: editForm.certificateNumber,
+        category: editForm.category || "기타",
+        score: editForm.score || "",
+        grade: editForm.grade || "",
+      })
+      .eq("id", selectedCertificate.id);
+
+    if (error) {
+      alert(`수정에 실패했습니다: ${error.message}`);
+      console.error(error);
+      return;
+    }
+
+    setSelectedCertificate({
+      ...selectedCertificate,
+      ...editForm,
       category: editForm.category || "기타",
-    })
-    .eq("id", selectedCertificate.id);
+      score: editForm.score || "",
+      grade: editForm.grade || "",
+    });
 
-  if (error) {
-    alert(`수정에 실패했습니다: ${error.message}`);
-    console.error(error);
-    return;
-  }
-
-  setSelectedCertificate({
-    ...selectedCertificate,
-    ...editForm,
-    category: editForm.category || "기타",
-  });
-
-  alert("수정이 완료되었습니다.");
-
-  setIsEditing(false);
-
-  await loadCertificates();
-};
+    alert("수정이 완료되었습니다.");
+    setIsEditing(false);
+    await loadCertificates();
+  };
 
   const getExpiryText = (expiryDate: string) => {
     if (!expiryDate) return "만료 없음";
@@ -306,12 +313,27 @@ export default function Home() {
       cert.title.toLowerCase().includes(keyword) ||
       cert.issuer.toLowerCase().includes(keyword) ||
       cert.holderName.toLowerCase().includes(keyword) ||
-      cert.certificateNumber.toLowerCase().includes(keyword);
+      cert.certificateNumber.toLowerCase().includes(keyword) ||
+      (cert.score || "").toLowerCase().includes(keyword) ||
+      (cert.grade || "").toLowerCase().includes(keyword);
 
     const matchesCategory =
       selectedCategory === "전체" || cert.category === selectedCategory;
 
     return matchesSearch && matchesCategory;
+  });
+
+  const expiringCertificates = certificates.filter((cert) => {
+    if (!cert.expiryDate) return false;
+
+    const today = new Date();
+    const expiry = new Date(cert.expiryDate);
+
+    const diffDays = Math.ceil(
+      (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    return diffDays <= 30;
   });
 
   return (
@@ -320,18 +342,16 @@ export default function Home() {
         {screen === "home" && (
           <>
             <header className="mb-6">
-              <div>
-                <p className="text-sm text-gray-500">CertBox</p>
-                <h1 className="mt-1 text-center text-2xl font-bold tracking-tight">
-                  내 자격증을 한곳에
-                </h1>
-              </div>
+              <p className="text-sm text-gray-500">CertBox</p>
+              <h1 className="mt-1 text-center text-2xl font-bold tracking-tight">
+                내 자격증을 한곳에
+              </h1>
 
               <div className="mt-4">
                 <input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="자격증명, 기관, 이름, 번호 검색"
+                  placeholder="자격증명, 기관, 이름, 번호, 점수 검색"
                   className="w-full rounded-3xl bg-white px-5 py-4 text-base shadow-sm outline-none placeholder:text-gray-400"
                 />
               </div>
@@ -384,6 +404,34 @@ export default function Home() {
               + 자격증 / 수료증 추가하기
             </button>
 
+            {expiringCertificates.length > 0 && (
+              <section className="mb-6">
+                <h2 className="mb-3 text-lg font-bold">⚠ 곧 만료돼요</h2>
+
+                <div className="space-y-3">
+                  {expiringCertificates.map((cert) => (
+                    <div
+                      key={cert.id}
+                      className="rounded-3xl border border-orange-200 bg-orange-50 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-bold">{cert.title}</p>
+                          <p className="text-sm text-gray-500">
+                            {cert.expiryDate}
+                          </p>
+                        </div>
+
+                        <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-bold text-orange-700">
+                          {getExpiryText(cert.expiryDate)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <section>
               <h2 className="mb-3 text-lg font-bold">내 보관함</h2>
 
@@ -418,6 +466,12 @@ export default function Home() {
 
                     <h3 className="mt-3 text-lg font-bold">{cert.title}</h3>
                     <p className="mt-1 text-sm text-gray-500">{cert.issuer}</p>
+
+                    {(cert.score || cert.grade) && (
+                      <p className="mt-2 text-sm font-bold text-gray-900">
+                        {[cert.score, cert.grade].filter(Boolean).join(" / ")}
+                      </p>
+                    )}
 
                     <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
                       <p className="text-sm text-gray-500">
@@ -471,21 +525,21 @@ export default function Home() {
               }`}
             >
               <input
-  id="camera-upload"
-  type="file"
-  accept="image/*"
-  capture="environment"
-  className="hidden"
-  onChange={(e) => handleFile(e.target.files?.[0])}
-/>
+                id="camera-upload"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0])}
+              />
 
-<input
-  id="gallery-upload"
-  type="file"
-  accept="image/*"
-  className="hidden"
-  onChange={(e) => handleFile(e.target.files?.[0])}
-/>
+              <input
+                id="gallery-upload"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0])}
+              />
 
               {preview ? (
                 <div className="w-full">
@@ -511,21 +565,22 @@ export default function Home() {
                     <br />
                     AI가 내용을 분석할 준비를 합니다.
                   </p>
-                  <div className="mt-6 grid w-full grid-cols-2 gap-3">
-  <label
-    htmlFor="camera-upload"
-    className="rounded-2xl bg-gray-900 px-4 py-3 text-sm font-bold text-white"
-  >
-    카메라로 촬영
-  </label>
 
-  <label
-    htmlFor="gallery-upload"
-    className="rounded-2xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-700"
-  >
-    사진첩에서 선택
-  </label>
-</div>
+                  <div className="mt-6 grid w-full grid-cols-2 gap-3">
+                    <label
+                      htmlFor="camera-upload"
+                      className="rounded-2xl bg-gray-900 px-4 py-3 text-sm font-bold text-white"
+                    >
+                      카메라로 촬영
+                    </label>
+
+                    <label
+                      htmlFor="gallery-upload"
+                      className="rounded-2xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-700"
+                    >
+                      사진첩에서 선택
+                    </label>
+                  </div>
                 </>
               )}
             </label>
@@ -647,7 +702,7 @@ export default function Home() {
 
               <div>
                 <label className="text-sm font-semibold text-gray-600">
-                  수료번호 / 상장번호
+                  발급번호
                 </label>
                 <input
                   value={form.certificateNumber}
@@ -655,6 +710,30 @@ export default function Home() {
                     setForm({ ...form, certificateNumber: e.target.value })
                   }
                   placeholder="예: 제2026-001호"
+                  className="mt-2 w-full rounded-2xl bg-gray-50 px-4 py-3 text-base font-medium outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
+                  점수
+                </label>
+                <input
+                  value={form.score}
+                  onChange={(e) => setForm({ ...form, score: e.target.value })}
+                  placeholder="예: 920, 160"
+                  className="mt-2 w-full rounded-2xl bg-gray-50 px-4 py-3 text-base font-medium outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
+                  등급
+                </label>
+                <input
+                  value={form.grade}
+                  onChange={(e) => setForm({ ...form, grade: e.target.value })}
+                  placeholder="예: ADVANCED LOW, IH, N1"
                   className="mt-2 w-full rounded-2xl bg-gray-50 px-4 py-3 text-base font-medium outline-none"
                 />
               </div>
@@ -750,12 +829,30 @@ export default function Home() {
 
                   <div>
                     <p className="text-sm text-gray-500">
-                      수료번호 / 상장번호
+                      발급번호
                     </p>
                     <p className="mt-1 font-medium">
                       {selectedCertificate.certificateNumber || "-"}
                     </p>
                   </div>
+
+                  {selectedCertificate.score && (
+                    <div>
+                      <p className="text-sm text-gray-500">점수</p>
+                      <p className="mt-1 font-medium">
+                        {selectedCertificate.score}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedCertificate.grade && (
+                    <div>
+                      <p className="text-sm text-gray-500">등급</p>
+                      <p className="mt-1 font-medium">
+                        {selectedCertificate.grade}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -862,7 +959,7 @@ export default function Home() {
 
                 <div>
                   <label className="text-sm font-semibold text-gray-600">
-                    수료번호 / 상장번호
+                    발급번호
                   </label>
                   <input
                     value={editForm.certificateNumber}
@@ -872,6 +969,40 @@ export default function Home() {
                         certificateNumber: e.target.value,
                       })
                     }
+                    className="mt-2 w-full rounded-2xl bg-gray-50 px-4 py-3 text-base font-medium outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">
+                    점수
+                  </label>
+                  <input
+                    value={editForm.score || ""}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        score: e.target.value,
+                      })
+                    }
+                    placeholder="예: 920, 160"
+                    className="mt-2 w-full rounded-2xl bg-gray-50 px-4 py-3 text-base font-medium outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">
+                    등급
+                  </label>
+                  <input
+                    value={editForm.grade || ""}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        grade: e.target.value,
+                      })
+                    }
+                    placeholder="예: ADVANCED LOW, IH, N1"
                     className="mt-2 w-full rounded-2xl bg-gray-50 px-4 py-3 text-base font-medium outline-none"
                   />
                 </div>
