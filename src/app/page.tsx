@@ -2,6 +2,7 @@
 
 import { supabase } from "../lib/supabase";
 import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 
 type Certificate = {
   id: string | number;
@@ -71,12 +72,20 @@ export default function Home() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
+  const [user, setUser] = useState<User | null>(null);
+const [authEmail, setAuthEmail] = useState("");
+const [authPassword, setAuthPassword] = useState("");
+const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const loadCertificates = async () => {
-    const { data, error } = await supabase
-      .from("certificates")
-      .select("*")
-      .order("created_at", { ascending: false });
+    if (!user) return;
+
+const { data, error } = await supabase
+  .from("certificates")
+  .select("*")
+  .eq("user_id", user.id)
+  .order("created_at", { ascending: false });
 
     if (error) {
       console.error("불러오기 실패:", error);
@@ -102,8 +111,85 @@ export default function Home() {
   };
 
   useEffect(() => {
+  const initAuth = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    setUser(session?.user ?? null);
+    setIsAuthLoading(false);
+  };
+
+  initAuth();
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
+
+useEffect(() => {
+  if (user) {
     loadCertificates();
-  }, []);
+  } else {
+    setCertificates([]);
+  }
+}, [user]);
+
+const handleEmailAuth = async () => {
+  if (!authEmail || !authPassword) {
+    alert("이메일과 비밀번호를 입력해주세요.");
+    return;
+  }
+
+  const { error } =
+    authMode === "signup"
+      ? await supabase.auth.signUp({
+          email: authEmail,
+          password: authPassword,
+        })
+      : await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password: authPassword,
+        });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  if (authMode === "signup") {
+    alert("회원가입 완료");
+  }
+};
+
+const handleOAuthLogin = async (
+  provider: "google" | "kakao"
+) => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: window.location.origin,
+    },
+  });
+
+  if (error) {
+    alert(error.message);
+  }
+};
+
+const handleLogout = async () => {
+  await supabase.auth.signOut();
+  setUser(null);
+  setCertificates([]);
+  setSelectedCertificate(null);
+  setScreen("home");
+};
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
@@ -162,12 +248,17 @@ export default function Home() {
   };
 
   const handleSave = async () => {
-    let imageUrl = "";
+  if (!user) {
+    alert("로그인이 필요합니다.");
+    return;
+  }
+
+  let imageUrl = "";
 
     if (selectedFile) {
       const fileExt = selectedFile.name.split(".").pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `certificates/${fileName}`;
+      const filePath = `${user.id}/certificates/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("certificate-images")
@@ -187,6 +278,7 @@ export default function Home() {
     }
 
     const { error } = await supabase.from("certificates").insert({
+      user_id: user.id,
       title: form.title,
       issuer: form.issuer,
       holder_name: form.holderName,
@@ -222,9 +314,10 @@ export default function Home() {
     if (!isConfirmed) return;
 
     const { error } = await supabase
-      .from("certificates")
-      .delete()
-      .eq("id", selectedCertificate.id);
+  .from("certificates")
+  .delete()
+  .eq("id", selectedCertificate.id)
+  .eq("user_id", user?.id);
 
     if (error) {
       alert(`삭제에 실패했습니다: ${error.message}`);
@@ -259,19 +352,20 @@ export default function Home() {
     if (!selectedCertificate) return;
 
     const { error } = await supabase
-      .from("certificates")
-      .update({
-        title: editForm.title,
-        issuer: editForm.issuer,
-        holder_name: editForm.holderName,
-        issue_date: editForm.issueDate || null,
-        expiry_date: editForm.expiryDate || null,
-        certificate_number: editForm.certificateNumber,
-        category: editForm.category || "기타",
-        score: editForm.score || "",
-        grade: editForm.grade || "",
-      })
-      .eq("id", selectedCertificate.id);
+  .from("certificates")
+  .update({
+    title: editForm.title,
+    issuer: editForm.issuer,
+    holder_name: editForm.holderName,
+    issue_date: editForm.issueDate || null,
+    expiry_date: editForm.expiryDate || null,
+    certificate_number: editForm.certificateNumber,
+    category: editForm.category || "기타",
+    score: editForm.score || "",
+    grade: editForm.grade || "",
+  })
+  .eq("id", selectedCertificate.id)
+  .eq("user_id", user?.id);
 
     if (error) {
       alert(`수정에 실패했습니다: ${error.message}`);
@@ -336,13 +430,121 @@ export default function Home() {
     return diffDays <= 30;
   });
 
+  if (isAuthLoading) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#F6F7F9] px-5 text-gray-900">
+      <p className="text-sm text-gray-500">CertBox 불러오는 중...</p>
+    </main>
+  );
+}
+
+if (!user) {
+  return (
+    <main className="min-h-screen bg-[#F6F7F9] px-5 py-10 text-gray-900">
+      <section className="mx-auto max-w-md">
+        <header className="mb-8">
+          <p className="text-sm text-gray-500">CertBox</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight">
+            내 인증서를 안전하게 보관하세요
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-gray-500">
+            자격증, 수료증, 어학성적을 AI로 정리하고 만료일까지 관리합니다.
+          </p>
+        </header>
+
+        <div className="rounded-3xl bg-white p-5 shadow-sm">
+          <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
+            <button
+              onClick={() => setAuthMode("login")}
+              className={`rounded-xl py-3 text-sm font-bold ${
+                authMode === "login"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500"
+              }`}
+            >
+              로그인
+            </button>
+
+            <button
+              onClick={() => setAuthMode("signup")}
+              className={`rounded-xl py-3 text-sm font-bold ${
+                authMode === "signup"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500"
+              }`}
+            >
+              회원가입
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <input
+              type="email"
+              value={authEmail}
+              onChange={(e) => setAuthEmail(e.target.value)}
+              placeholder="이메일"
+              className="w-full rounded-2xl bg-gray-50 px-4 py-4 text-base outline-none"
+            />
+
+            <input
+              type="password"
+              value={authPassword}
+              onChange={(e) => setAuthPassword(e.target.value)}
+              placeholder="비밀번호"
+              className="w-full rounded-2xl bg-gray-50 px-4 py-4 text-base outline-none"
+            />
+
+            <button
+              onClick={handleEmailAuth}
+              className="w-full rounded-3xl bg-gray-900 py-4 text-base font-bold text-white shadow-md"
+            >
+              {authMode === "login" ? "이메일로 로그인" : "회원가입하기"}
+            </button>
+          </div>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">또는</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => handleOAuthLogin("google")}
+              className="w-full rounded-3xl bg-white py-4 text-base font-bold text-gray-800 shadow-sm ring-1 ring-gray-200"
+            >
+              Google로 계속하기
+            </button>
+
+            <button
+              onClick={() => handleOAuthLogin("kakao")}
+              className="w-full rounded-3xl bg-[#FEE500] py-4 text-base font-bold text-gray-900 shadow-sm"
+            >
+              카카오로 계속하기
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
   return (
     <main className="min-h-screen bg-[#F6F7F9] px-5 py-6 text-gray-900">
       <section className="mx-auto max-w-md">
         {screen === "home" && (
           <>
             <header className="mb-6">
-              <p className="text-sm text-gray-500">CertBox</p>
+  <div className="flex items-center justify-between">
+    <p className="text-sm text-gray-500">CertBox</p>
+
+    <button
+      onClick={handleLogout}
+      className="rounded-full bg-white px-4 py-2 text-xs font-bold text-gray-600 shadow-sm"
+    >
+      로그아웃
+    </button>
+  </div>
               <h1 className="mt-1 text-center text-2xl font-bold tracking-tight">
                 내 자격증을 한곳에
               </h1>
