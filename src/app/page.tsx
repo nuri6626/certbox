@@ -77,6 +77,8 @@ const [authEmail, setAuthEmail] = useState("");
 const [authPassword, setAuthPassword] = useState("");
 const [authMode, setAuthMode] = useState<"login" | "signup">("login");
 const [isAuthLoading, setIsAuthLoading] = useState(true);
+const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+const [canInstall, setCanInstall] = useState(false);
 
   const loadCertificates = async () => {
     if (!user) return;
@@ -111,6 +113,22 @@ const { data, error } = await supabase
   };
 
   useEffect(() => {
+  const handleBeforeInstallPrompt = (event: any) => {
+    event.preventDefault();
+    setDeferredPrompt(event);
+    setCanInstall(true);
+  };
+
+  window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+  return () => {
+    window.removeEventListener(
+      "beforeinstallprompt",
+      handleBeforeInstallPrompt
+    );
+  };
+}, []);
+  useEffect(() => {
   const initAuth = async () => {
     const {
       data: { session },
@@ -141,6 +159,21 @@ useEffect(() => {
   }
 }, [user]);
 
+const handleInstallApp = async () => {
+  if (!deferredPrompt) {
+    alert("현재 브라우저에서는 설치 버튼을 사용할 수 없습니다.");
+    return;
+  }
+
+  deferredPrompt.prompt();
+
+  const { outcome } = await deferredPrompt.userChoice;
+
+  if (outcome === "accepted") {
+    setDeferredPrompt(null);
+    setCanInstall(false);
+  }
+};
 const handleEmailAuth = async () => {
   if (!authEmail || !authPassword) {
     alert("이메일과 비밀번호를 입력해주세요.");
@@ -603,6 +636,14 @@ if (!user) {
             >
               + 자격증 / 수료증 추가하기
             </button>
+            {canInstall && (
+  <button
+    onClick={handleInstallApp}
+    className="mb-6 w-full rounded-3xl bg-white py-4 text-base font-bold text-gray-800 shadow-sm ring-1 ring-gray-200"
+  >
+    📱 앱으로 설치하기
+  </button>
+)}
 
             {expiringCertificates.length > 0 && (
               <section className="mb-6">
