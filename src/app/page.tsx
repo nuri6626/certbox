@@ -168,9 +168,7 @@ const handleEmailAuth = async () => {
   }
 };
 
-const handleOAuthLogin = async (
-  provider: "google" | "kakao"
-) => {
+const handleOAuthLogin = async (provider: "google" | "kakao") => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
