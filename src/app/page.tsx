@@ -1,23 +1,13 @@
 "use client";
 
+import Link from "next/link";
+import { createExam, getExams } from "../lib/exams";
+import { getCertificates } from "../lib/certificates";
+import type { Certificate } from "../types/certificate";
+import type { Exam } from "../types/exam";
 import { supabase } from "../lib/supabase";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-
-type Certificate = {
-  id: string | number;
-  title: string;
-  issuer: string;
-  holderName: string;
-  issueDate: string;
-  expiryDate: string;
-  category: string;
-  certificateNumber: string;
-  imageUrl?: string;
-  score?: string;
-  grade?: string;
-  extraData?: any;
-};
 
 const mockCertificates: Certificate[] = [];
 
@@ -45,7 +35,7 @@ const categoryOptions = [
 
 export default function Home() {
   const [screen, setScreen] =
-    useState<"home" | "upload" | "result" | "detail">("home");
+    useState<"home" | "upload" | "result" | "detail" | "schedule">("home");
 
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -72,6 +62,15 @@ export default function Home() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
+  const [exams, setExams] = useState<Exam[]>([]);
+const [examForm, setExamForm] = useState({
+  name: "",
+  applyStart: "",
+  applyEnd: "",
+  examDate: "",
+  resultDate: "",
+  memo: "",
+});
   const [user, setUser] = useState<User | null>(null);
 const [authEmail, setAuthEmail] = useState("");
 const [authPassword, setAuthPassword] = useState("");
@@ -80,37 +79,27 @@ const [isAuthLoading, setIsAuthLoading] = useState(true);
 const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 const [canInstall, setCanInstall] = useState(false);
 
-  const loadCertificates = async () => {
-    if (!user) return;
+const loadCertificates = async () => {
+  if (!user) return;
 
-const { data, error } = await supabase
-  .from("certificates")
-  .select("*")
-  .eq("user_id", user.id)
-  .order("created_at", { ascending: false });
+  try {
+    const data = await getCertificates(user.id);
+    setCertificates(data);
+  } catch (error) {
+    console.error("불러오기 실패:", error);
+  }
+}; 
 
-    if (error) {
-      console.error("불러오기 실패:", error);
-      return;
-    }
+ const loadExams = async () => {
+  if (!user) return;
 
-    const mappedData: Certificate[] = (data || []).map((item) => ({
-      id: item.id,
-      title: item.title,
-      issuer: item.issuer || "",
-      holderName: item.holder_name || "",
-      issueDate: item.issue_date || "",
-      expiryDate: item.expiry_date || "",
-      category: item.category || "기타",
-      certificateNumber: item.certificate_number || "",
-      score: item.score || "",
-      grade: item.grade || "",
-      imageUrl: item.image_url || "",
-      extraData: item.extra_data || {},
-    }));
-
-    setCertificates(mappedData);
-  };
+  try {
+    const examData = await getExams(user.id);
+    setExams(examData);
+  } catch (error) {
+    console.error("일정 불러오기 실패:", error);
+  }
+}; 
 
   useEffect(() => {
   const handleBeforeInstallPrompt = (event: any) => {
@@ -153,10 +142,12 @@ const { data, error } = await supabase
 
 useEffect(() => {
   if (user) {
-    loadCertificates();
-  } else {
-    setCertificates([]);
-  }
+  loadCertificates();
+  loadExams();
+} else {
+  setCertificates([]);
+  setExams([]);
+}
 }, [user]);
 
 const handleInstallApp = async () => {
@@ -277,6 +268,41 @@ const handleLogout = async () => {
       setIsAnalyzing(false);
     }
   };
+
+ const handleSaveExam = async () => {
+  if (!user) {
+    alert("로그인이 필요합니다.");
+    return;
+  }
+
+  try {
+    await createExam({
+      userId: user.id,
+      name: examForm.name,
+      applyStart: examForm.applyStart,
+      applyEnd: examForm.applyEnd,
+      examDate: examForm.examDate,
+      resultDate: examForm.resultDate,
+      memo: examForm.memo,
+    });
+
+    alert("일정이 저장되었습니다.");
+
+    setExamForm({
+      name: "",
+      applyStart: "",
+      applyEnd: "",
+      examDate: "",
+      resultDate: "",
+      memo: "",
+    });
+
+    await loadExams();
+  } catch (error) {
+    console.error(error);
+    alert("일정 저장 실패");
+  }
+};
 
   const handleSave = async () => {
   if (!user) {
@@ -428,6 +454,23 @@ const handleLogout = async () => {
     if (diffDays < 0) return "만료됨";
     return `D-${diffDays}`;
   };
+  const getDdayText = (date: string) => {
+  if (!date) return "";
+
+  const today = new Date();
+  const target = new Date(date);
+
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.ceil(
+    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) return "D-DAY";
+  if (diffDays > 0) return `D-${diffDays}`;
+  return "지난 일정";
+};
 
   const categories = ["전체", ...categoryOptions];
 
@@ -460,6 +503,52 @@ const handleLogout = async () => {
 
     return diffDays <= 30;
   });
+
+  const upcomingExamEvents = exams
+  .flatMap((exam) => [
+    {
+      id: `${exam.id}-apply-start`,
+      examName: exam.name,
+      label: "접수 시작",
+      date: exam.applyStart,
+    },
+    {
+      id: `${exam.id}-apply-end`,
+      examName: exam.name,
+      label: "접수 마감",
+      date: exam.applyEnd,
+    },
+    {
+      id: `${exam.id}-exam`,
+      examName: exam.name,
+      label: "시험일",
+      date: exam.examDate,
+    },
+    {
+      id: `${exam.id}-result`,
+      examName: exam.name,
+      label: "발표일",
+      date: exam.resultDate,
+    },
+  ])
+  .filter((event) => {
+    if (!event.date) return false;
+
+    const today = new Date();
+    const target = new Date(event.date);
+
+    today.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil(
+      (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    return diffDays >= 0 && diffDays <= 7;
+  })
+  .sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
   if (isAuthLoading) {
   return (
@@ -628,23 +717,49 @@ if (!user) {
                 </p>
                 <p className="mt-1 text-xs text-gray-400">건 확인 필요</p>
               </div>
-            </section>
+           </section>
 
-            <button
-              onClick={() => setScreen("upload")}
-              className="mb-6 w-full rounded-3xl bg-gray-900 py-4 text-base font-bold text-white shadow-md"
-            >
-              + 자격증 / 수료증 추가하기
-            </button>
-            {canInstall && (
-  <button
-    onClick={handleInstallApp}
-    className="mb-6 w-full rounded-3xl bg-white py-4 text-base font-bold text-gray-800 shadow-sm ring-1 ring-gray-200"
-  >
-    📱 앱으로 설치하기
-  </button>
+{upcomingExamEvents.length > 0 && (
+  <section className="mb-6">
+    <h2 className="mb-3 text-lg font-bold">📅 곧 다가오는 일정</h2>
+
+    <div className="space-y-3">
+      {upcomingExamEvents.map((event) => (
+        <div
+          key={event.id}
+          className="rounded-3xl border border-blue-100 bg-blue-50 p-4"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-bold">{event.examName}</p>
+              <p className="mt-1 text-sm text-gray-500">
+                {event.label} · {event.date}
+              </p>
+            </div>
+
+            <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-700">
+              {getDdayText(event.date)}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
 )}
 
+<Link
+  href="/certificates/upload"
+  className="mb-6 block w-full rounded-3xl bg-gray-900 py-4 text-center text-base font-bold text-white shadow-md"
+>
+  + 자격증 / 수료증 추가하기
+</Link>
+
+<Link
+  href="/schedule"
+  className="mb-6 block w-full rounded-3xl bg-white py-4 text-center text-base font-bold text-gray-800 shadow-sm ring-1 ring-gray-200"
+>
+  📅 시험 일정 관리
+</Link>
             {expiringCertificates.length > 0 && (
               <section className="mb-6">
                 <h2 className="mb-3 text-lg font-bold">⚠ 곧 만료돼요</h2>
@@ -687,10 +802,8 @@ if (!user) {
                   <article
                     key={cert.id}
                     onClick={() => {
-                      setSelectedCertificate(cert);
-                      setIsEditing(false);
-                      setScreen("detail");
-                    }}
+                    window.location.href = `/certificates/${cert.id}`;
+                   }}
                     className="cursor-pointer rounded-3xl bg-white p-5 shadow-sm transition active:scale-[0.99]"
                   >
                     {cert.imageUrl && (
