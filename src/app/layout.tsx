@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import BottomNav from "../components/common/BottomNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CertBox",
+  title: "커리어스",
   description: "자격증, 수료증, 어학성적 통합 관리",
 
   manifest: "/manifest.json",
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "CertBox",
+    title: "커리어스",
   },
 
   icons: {
@@ -40,8 +41,9 @@ export default function RootLayout({
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col pb-24">
         {children}
+        <BottomNav />
       </body>
     </html>
   );

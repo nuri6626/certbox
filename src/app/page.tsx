@@ -1,5 +1,9 @@
 "use client";
 
+import CertificateList from "../components/certificate/CertificateList";
+import ExpiringCertificateSection from "../components/certificate/ExpiringCertificateSection";
+import UpcomingExamSection from "../components/schedule/UpcomingExamSection";
+import CertificateCard from "../components/certificate/CertificateCard";
 import Link from "next/link";
 import { createExam, getExams } from "../lib/exams";
 import { getCertificates } from "../lib/certificates";
@@ -718,34 +722,11 @@ if (!user) {
                 <p className="mt-1 text-xs text-gray-400">건 확인 필요</p>
               </div>
            </section>
+<UpcomingExamSection
+  events={upcomingExamEvents}
+  getDdayText={getDdayText}
+/>
 
-{upcomingExamEvents.length > 0 && (
-  <section className="mb-6">
-    <h2 className="mb-3 text-lg font-bold">📅 곧 다가오는 일정</h2>
-
-    <div className="space-y-3">
-      {upcomingExamEvents.map((event) => (
-        <div
-          key={event.id}
-          className="rounded-3xl border border-blue-100 bg-blue-50 p-4"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-bold">{event.examName}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                {event.label} · {event.date}
-              </p>
-            </div>
-
-            <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-700">
-              {getDdayText(event.date)}
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  </section>
-)}
 
 <Link
   href="/certificates/upload"
@@ -760,85 +741,19 @@ if (!user) {
 >
   📅 시험 일정 관리
 </Link>
-            {expiringCertificates.length > 0 && (
-              <section className="mb-6">
-                <h2 className="mb-3 text-lg font-bold">⚠ 곧 만료돼요</h2>
+            <ExpiringCertificateSection
+  certificates={expiringCertificates}
+  getExpiryText={getExpiryText}
+/>
 
-                <div className="space-y-3">
-                  {expiringCertificates.map((cert) => (
-                    <div
-                      key={cert.id}
-                      className="rounded-3xl border border-orange-200 bg-orange-50 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-bold">{cert.title}</p>
-                          <p className="text-sm text-gray-500">
-                            {cert.expiryDate}
-                          </p>
-                        </div>
+           <section>
+  <h2 className="mb-3 text-lg font-bold">내 보관함</h2>
 
-                        <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-bold text-orange-700">
-                          {getExpiryText(cert.expiryDate)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <section>
-              <h2 className="mb-3 text-lg font-bold">내 보관함</h2>
-
-              <div className="space-y-3">
-                {filteredCertificates.length === 0 && (
-                  <div className="rounded-3xl bg-white p-6 text-center text-sm text-gray-500 shadow-sm">
-                    검색 결과가 없습니다.
-                  </div>
-                )}
-
-                {filteredCertificates.map((cert) => (
-                  <article
-                    key={cert.id}
-                    onClick={() => {
-                    window.location.href = `/certificates/${cert.id}`;
-                   }}
-                    className="cursor-pointer rounded-3xl bg-white p-5 shadow-sm transition active:scale-[0.99]"
-                  >
-                    {cert.imageUrl && (
-                      <img
-                        src={cert.imageUrl}
-                        alt={cert.title}
-                        className="mb-4 h-32 w-full rounded-2xl bg-gray-100 object-cover"
-                      />
-                    )}
-
-                    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                      {cert.category || "기타"}
-                    </span>
-
-                    <h3 className="mt-3 text-lg font-bold">{cert.title}</h3>
-                    <p className="mt-1 text-sm text-gray-500">{cert.issuer}</p>
-
-                    {(cert.score || cert.grade) && (
-                      <p className="mt-2 text-sm font-bold text-gray-900">
-                        {[cert.score, cert.grade].filter(Boolean).join(" / ")}
-                      </p>
-                    )}
-
-                    <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
-                      <p className="text-sm text-gray-500">
-                        발급일 {cert.issueDate}
-                      </p>
-                      <p className="text-sm font-bold">
-                        {getExpiryText(cert.expiryDate)}
-                      </p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
+  <CertificateList
+    certificates={filteredCertificates}
+    getExpiryText={getExpiryText}
+  />
+</section>
           </>
         )}
 
