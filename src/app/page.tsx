@@ -1,5 +1,7 @@
 "use client";
 
+import BottomTabBar from "../components/home/BottomTabBar";
+import CareerHome from "../components/home/CareerHome";
 import CertificateList from "../components/certificate/CertificateList";
 import ExpiringCertificateSection from "../components/certificate/ExpiringCertificateSection";
 import UpcomingExamSection from "../components/schedule/UpcomingExamSection";
@@ -39,7 +41,7 @@ const categoryOptions = [
 
 export default function Home() {
   const [screen, setScreen] =
-    useState<"home" | "upload" | "result" | "detail" | "schedule">("home");
+    useState<"home" | "upload" | "result" | "detail" | "schedule" | "vault">("home");
 
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -101,7 +103,7 @@ const loadCertificates = async () => {
     const examData = await getExams(user.id);
     setExams(examData);
   } catch (error) {
-    console.error("일정 불러오기 실패:", error);
+  setExams([]);
   }
 }; 
 
@@ -656,106 +658,54 @@ if (!user) {
   return (
     <main className="min-h-screen bg-[#F6F7F9] px-5 py-6 text-gray-900">
       <section className="mx-auto max-w-md">
-        {screen === "home" && (
-          <>
-            <header className="mb-6">
-  <div className="flex items-center justify-between">
-    <p className="text-sm text-gray-500">CertBox</p>
+      {screen === "home" && (
+  <CareerHome
+    certificates={certificates}
+    filteredCertificates={filteredCertificates}
+    upcomingExamEvents={upcomingExamEvents}
+    getExpiryText={getExpiryText}
+    getDdayText={getDdayText}
+    searchTerm={searchTerm}
+    setSearchTerm={setSearchTerm}
+    setScreen={setScreen}
+    setSelectedCertificate={setSelectedCertificate}
+    setIsEditing={setIsEditing}
+    handleLogout={handleLogout}
+  />
+)} 
 
-    <button
-      onClick={handleLogout}
-      className="rounded-full bg-white px-4 py-2 text-xs font-bold text-gray-600 shadow-sm"
-    >
-      로그아웃
-    </button>
-  </div>
-              <h1 className="mt-1 text-center text-2xl font-bold tracking-tight">
-                내 자격증을 한곳에
-              </h1>
+{screen === "vault" && (
+  <section>
+    <header className="mb-6">
+      <p className="text-sm text-gray-500">커리어스</p>
+      <h1 className="mt-1 text-2xl font-bold">보관함</h1>
+      <p className="mt-2 text-sm text-gray-500">
+        등록한 인증서를 한눈에 확인하세요.
+      </p>
+    </header>
 
-              <div className="mt-4">
-                <input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="자격증명, 기관, 이름, 번호, 점수 검색"
-                  className="w-full rounded-3xl bg-white px-5 py-4 text-base shadow-sm outline-none placeholder:text-gray-400"
-                />
-              </div>
-            </header>
+    <div className="mb-5">
+      <input
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="자격증명, 기관, 이름, 번호 검색"
+        className="w-full rounded-3xl bg-white px-5 py-4 text-base shadow-sm outline-none placeholder:text-gray-400"
+      />
+    </div>
 
-            <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    selectedCategory === category
-                      ? "bg-gray-900 text-white"
-                      : "bg-white text-gray-600 shadow-sm"
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-
-            <section className="mb-6 grid grid-cols-2 gap-3">
-              <div className="rounded-3xl bg-white p-5 shadow-sm">
-                <p className="text-sm text-gray-500">보관 중</p>
-                <p className="mt-2 text-3xl font-bold">
-                  {certificates.length}
-                </p>
-                <p className="mt-1 text-xs text-gray-400">개의 인증서</p>
-              </div>
-
-              <div className="rounded-3xl bg-white p-5 shadow-sm">
-                <p className="text-sm text-gray-500">만료 예정</p>
-                <p className="mt-2 text-3xl font-bold">
-                  {
-                    certificates.filter(
-                      (cert) =>
-                        cert.expiryDate &&
-                        getExpiryText(cert.expiryDate) !== "만료됨"
-                    ).length
-                  }
-                </p>
-                <p className="mt-1 text-xs text-gray-400">건 확인 필요</p>
-              </div>
-           </section>
-<UpcomingExamSection
-  events={upcomingExamEvents}
-  getDdayText={getDdayText}
-/>
-
-
-<Link
-  href="/certificates/upload"
-  className="mb-6 block w-full rounded-3xl bg-gray-900 py-4 text-center text-base font-bold text-white shadow-md"
->
-  + 자격증 / 수료증 추가하기
-</Link>
-
-<Link
-  href="/schedule"
-  className="mb-6 block w-full rounded-3xl bg-white py-4 text-center text-base font-bold text-gray-800 shadow-sm ring-1 ring-gray-200"
->
-  📅 시험 일정 관리
-</Link>
-            <ExpiringCertificateSection
-  certificates={expiringCertificates}
+    <CertificateList
+  certificates={filteredCertificates}
   getExpiryText={getExpiryText}
 />
 
-           <section>
-  <h2 className="mb-3 text-lg font-bold">내 보관함</h2>
+<BottomTabBar
+  activeTab="vault"
+  setScreen={setScreen}
+/>
 
-  <CertificateList
-    certificates={filteredCertificates}
-    getExpiryText={getExpiryText}
-  />
+<div className="h-24" />
 </section>
-          </>
-        )}
+)}
 
         {screen === "upload" && (
           <section>

@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import type { Exam } from "../../types/exam";
 import { supabase } from "../../lib/supabase";
 import { createExam, getExams } from "../../lib/exams";
+import BottomTabBar from "../../components/home/BottomTabBar";
 
 export default function SchedulePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -552,7 +553,14 @@ export default function SchedulePage() {
             </div>
           ))}
         </div>
-      </section>
+            </section>
+
+      <BottomTabBar
+        activeTab="calendar"
+        setScreen={() => {}}
+      />
+
+      <div className="h-24" />
     </main>
   );
 }
