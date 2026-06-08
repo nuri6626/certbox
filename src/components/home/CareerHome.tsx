@@ -350,12 +350,7 @@ export default function CareerHome({
         <button className="mt-4 rounded-full bg-gray-950 px-5 py-2 text-sm font-bold text-white">추천 받기</button>
       </section>
 
-    <BottomTabBar
-  activeTab="home"
-  setScreen={setScreen}
-/>
-
-      <div className="h-24" />
+  
     </>
   );
 }

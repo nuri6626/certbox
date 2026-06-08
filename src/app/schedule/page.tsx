@@ -553,6 +553,8 @@ export default function SchedulePage() {
             </div>
           ))}
         </div>
+
+        
             </section>
 
       <BottomTabBar

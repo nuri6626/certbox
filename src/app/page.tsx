@@ -650,6 +650,22 @@ if (!user) {
             </button>
           </div>
         </div>
+        {(screen === "home" ||
+  screen === "vault" ||
+  screen === "detail") && (
+  <>
+    <BottomTabBar
+      activeTab={
+        screen === "vault"
+          ? "vault"
+          : "home"
+      }
+      setScreen={setScreen}
+    />
+
+    <div className="h-24" />
+  </>
+)}
       </section>
     </main>
   );
