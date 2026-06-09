@@ -650,22 +650,7 @@ if (!user) {
             </button>
           </div>
         </div>
-        {(screen === "home" ||
-  screen === "vault" ||
-  screen === "detail") && (
-  <>
-    <BottomTabBar
-      activeTab={
-        screen === "vault"
-          ? "vault"
-          : "home"
-      }
-      setScreen={setScreen}
-    />
-
-    <div className="h-24" />
-  </>
-)}
+       
       </section>
     </main>
   );
@@ -715,7 +700,7 @@ if (!user) {
 />
 
 <BottomTabBar
-  activeTab="vault"
+  activeTab={screen === "vault" ? "vault" : "home"}
   setScreen={setScreen}
 />
 
@@ -1258,6 +1243,17 @@ if (!user) {
               </div>
             )}
           </section>
+               )}
+
+        {(screen === "home" || screen === "vault" || screen === "detail") && (
+          <>
+            <BottomTabBar
+              activeTab={screen === "vault" ? "vault" : "home"}
+              setScreen={setScreen}
+            />
+
+            <div className="h-24" />
+          </>
         )}
       </section>
     </main>

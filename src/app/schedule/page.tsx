@@ -557,10 +557,7 @@ export default function SchedulePage() {
         
             </section>
 
-      <BottomTabBar
-        activeTab="calendar"
-        setScreen={() => {}}
-      />
+      <BottomTabBar activeTab="calendar" />
 
       <div className="h-24" />
     </main>

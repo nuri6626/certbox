@@ -1,5 +1,4 @@
 import type { Certificate } from "../../types/certificate";
-import BottomTabBar from "./BottomTabBar";
 
 type CareerHomeProps = {
   certificates: Certificate[];
