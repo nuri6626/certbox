@@ -3,7 +3,7 @@ import Link from "next/link";
 type ScreenType = "home" | "upload" | "result" | "detail" | "schedule" | "vault";
 
 type Props = {
-  activeTab: "home" | "vault" | "calendar" | "community" | "mypage";
+  activeTab: "home" | "vault" | "calendar" | "community" | "benefits" | "mypage";
   setScreen?: (screen: ScreenType) => void;
 };
 
@@ -17,7 +17,7 @@ export default function BottomTabBar({ activeTab, setScreen }: Props) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-md rounded-t-[30px] bg-white px-7 pb-4 pt-3 shadow-[0_-8px_28px_rgba(0,0,0,0.08)]">
-      <div className="grid grid-cols-5 text-[10px] font-semibold">
+      <div className="grid grid-cols-6 text-[10px] font-semibold">
         <Link
           href="/"
           onClick={(e) => {
@@ -67,6 +67,17 @@ export default function BottomTabBar({ activeTab, setScreen }: Props) {
           </svg>
           <span>커뮤니티</span>
         </Link>
+
+        <Link href="/benefits" className={itemClass("benefits")}>
+  <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M20 12v8H4v-8" />
+    <path d="M2 7h20v5H2z" />
+    <path d="M12 7v13" />
+    <path d="M12 7H8.5A2.5 2.5 0 1 1 12 4.5V7Z" />
+    <path d="M12 7h3.5A2.5 2.5 0 1 0 12 4.5V7Z" />
+  </svg>
+  <span>혜택</span>
+</Link>
 
         <Link href="/mypage" className={itemClass("mypage")}>
           <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2">

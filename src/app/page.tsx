@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  getProfile,
+  addXp,
+  getLevelTitle,
+  getNextLevelXp,
+  type Profile,
+} from "../lib/profiles";
 import BottomTabBar from "../components/home/BottomTabBar";
 import CareerHome from "../components/home/CareerHome";
 import CertificateList from "../components/certificate/CertificateList";
@@ -77,7 +84,8 @@ const [examForm, setExamForm] = useState({
   resultDate: "",
   memo: "",
 });
-  const [user, setUser] = useState<User | null>(null);
+const [user, setUser] = useState<User | null>(null);
+const [profile, setProfile] = useState<Profile | null>(null);
 const [authEmail, setAuthEmail] = useState("");
 const [authPassword, setAuthPassword] = useState("");
 const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -95,6 +103,17 @@ const loadCertificates = async () => {
     console.error("불러오기 실패:", error);
   }
 }; 
+
+const loadProfile = async () => {
+  if (!user) return;
+
+  try {
+    const profileData = await getProfile(user.id, user.email);
+    setProfile(profileData);
+  } catch (error) {
+    console.error("프로필 불러오기 실패:", error);
+  }
+};
 
  const loadExams = async () => {
   if (!user) return;
@@ -148,12 +167,14 @@ const loadCertificates = async () => {
 
 useEffect(() => {
   if (user) {
-  loadCertificates();
-  loadExams();
-} else {
-  setCertificates([]);
-  setExams([]);
-}
+    loadCertificates();
+    loadExams();
+    loadProfile();
+  } else {
+    setCertificates([]);
+    setExams([]);
+    setProfile(null);
+  }
 }, [user]);
 
 const handleInstallApp = async () => {
@@ -318,6 +339,81 @@ const handleLogout = async () => {
 
   let imageUrl = "";
 
+const clean = (value: string | null | undefined) =>
+  (value || "")
+    .replace(/\s+/g, "")
+    .replace(/[·ㆍ\-()]/g, "")
+    .toLowerCase();
+
+const normalizedTitle = clean(form.title);
+const normalizedIssuer = clean(form.issuer);
+const normalizedNumber = clean(form.certificateNumber);
+
+const { data: currentCertificates, error: duplicateError } = await supabase
+  .from("certificates")
+  .select("id, title, issuer, certificate_number, holder_name, issue_date")
+  .eq("user_id", user.id);
+
+if (duplicateError) {
+  alert(`중복 확인 실패: ${duplicateError.message}`);
+  return;
+}
+
+const isCurrentDuplicate = currentCertificates?.some((cert) => {
+  const sameTitle = clean(cert.title) === normalizedTitle;
+  const sameIssuer = clean(cert.issuer) === normalizedIssuer;
+
+  if (normalizedNumber) {
+    return (
+      sameTitle &&
+      sameIssuer &&
+      clean(cert.certificate_number) === normalizedNumber
+    );
+  }
+
+  return (
+    sameTitle &&
+    sameIssuer &&
+    clean(cert.holder_name) === clean(form.holderName) &&
+    (cert.issue_date || "") === (form.issueDate || "")
+  );
+});
+
+if (isCurrentDuplicate) {
+  alert("이미 보관함에 등록된 인증서입니다.");
+  return;
+}
+
+const { data: historyRows, error: historyError } = await supabase
+  .from("certificate_history")
+  .select("id, title, issuer, certificate_number, holder_name, issue_date, rewarded")
+  .eq("user_id", user.id);
+
+if (historyError) {
+  alert(`등록 이력 확인 실패: ${historyError.message}`);
+  return;
+}
+
+const hasRewardHistory = historyRows?.some((history) => {
+  const sameTitle = clean(history.title) === normalizedTitle;
+  const sameIssuer = clean(history.issuer) === normalizedIssuer;
+
+  if (normalizedNumber) {
+    return (
+      sameTitle &&
+      sameIssuer &&
+      clean(history.certificate_number) === normalizedNumber
+    );
+  }
+
+  return (
+    sameTitle &&
+    sameIssuer &&
+    clean(history.holder_name) === clean(form.holderName) &&
+    (history.issue_date || "") === (form.issueDate || "")
+  );
+});
+
     if (selectedFile) {
       const fileExt = selectedFile.name.split(".").pop();
       const fileName = `${Date.now()}.${fileExt}`;
@@ -363,11 +459,19 @@ const handleLogout = async () => {
 
     await loadCertificates();
 
-    setPreview(null);
-    setImageBase64(null);
-    setSelectedFile(null);
-    setForm(mockOcrResult);
-    setScreen("home");
+if (profile && user) {
+  const updatedProfile = await addXp(user.id, profile.xp, 10);
+  setProfile(updatedProfile);
+  alert("저장 완료! +10 XP를 획득했어요.");
+} else {
+  alert("저장 완료!");
+}
+
+setPreview(null);
+setImageBase64(null);
+setSelectedFile(null);
+setForm(mockOcrResult);
+setScreen("home");
   };
 
   const handleDelete = async () => {
@@ -677,13 +781,36 @@ if (!user) {
 
 {screen === "vault" && (
   <section>
-    <header className="mb-6">
+    <header className="mb-5">
       <p className="text-sm text-gray-500">커리어스</p>
       <h1 className="mt-1 text-2xl font-bold">보관함</h1>
       <p className="mt-2 text-sm text-gray-500">
         등록한 인증서를 한눈에 확인하세요.
       </p>
     </header>
+
+    {expiringCertificates.length > 0 && (
+      <div className="mb-5 rounded-3xl bg-orange-50 p-4 shadow-sm">
+        <p className="text-xs font-bold text-orange-500">만료 임박</p>
+        <p className="mt-1 text-sm font-bold text-gray-900">
+          {expiringCertificates[0].title} 만료 임박{" "}
+          {getExpiryText(expiringCertificates[0].expiryDate)}
+        </p>
+      </div>
+    )}
+
+    <button
+      onClick={() => setScreen("upload")}
+      className="mb-5 flex w-full items-center justify-between rounded-3xl bg-gray-900 p-5 text-left text-white shadow-sm"
+    >
+      <div>
+        <p className="text-lg font-bold">인증서 등록</p>
+        <p className="mt-1 text-sm text-gray-300">
+          자격증, 수료증, 어학성적을 추가하세요
+        </p>
+      </div>
+      <span className="text-3xl font-light">+</span>
+    </button>
 
     <div className="mb-5">
       <input
@@ -694,18 +821,69 @@ if (!user) {
       />
     </div>
 
-    <CertificateList
-  certificates={filteredCertificates}
-  getExpiryText={getExpiryText}
-/>
+    <div className="mb-4 flex items-center justify-between">
+      <h2 className="text-lg font-bold text-gray-900">
+        전체 인증서 {filteredCertificates.length}개
+      </h2>
+      <span className="text-xs text-gray-400">최근 등록순</span>
+    </div>
 
-<BottomTabBar
-  activeTab={screen === "vault" ? "vault" : "home"}
-  setScreen={setScreen}
-/>
+    {filteredCertificates.length === 0 ? (
+      <div className="rounded-3xl bg-white p-6 text-center text-sm text-gray-500 shadow-sm">
+        등록된 인증서가 없습니다.
+      </div>
+    ) : (
+      <div className="grid grid-cols-2 gap-3">
+        {filteredCertificates.map((cert, index) => (
+          <article
+            key={cert.id}
+            onClick={() => {
+              setSelectedCertificate(cert);
+              setIsEditing(false);
+              setScreen("detail");
+            }}
+            className="cursor-pointer rounded-3xl bg-white p-4 shadow-sm active:scale-[0.99]"
+          >
+            {index < 2 && (
+              <span className="mb-3 inline-block rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-bold text-violet-500">
+                최근 등록
+              </span>
+            )}
 
-<div className="h-24" />
-</section>
+            {cert.imageUrl ? (
+              <img
+                src={cert.imageUrl}
+                alt={cert.title}
+                className="mb-3 h-24 w-full rounded-2xl object-cover"
+              />
+            ) : (
+              <div className="mb-3 flex h-24 w-full items-center justify-center rounded-2xl bg-violet-50 text-xs font-bold text-violet-500">
+                CERT
+              </div>
+            )}
+
+            <p className="line-clamp-2 text-sm font-bold text-gray-900">
+              {cert.title}
+            </p>
+
+            <p className="mt-1 line-clamp-1 text-xs text-gray-500">
+              {cert.issuer}
+            </p>
+
+            <p className="mt-3 text-xs font-semibold text-gray-400">
+              {cert.issueDate || "발급일 없음"}
+            </p>
+
+            {cert.expiryDate && (
+              <p className="mt-1 text-xs font-bold text-orange-500">
+                {getExpiryText(cert.expiryDate)}
+              </p>
+            )}
+          </article>
+        ))}
+      </div>
+    )}
+  </section>
 )}
 
         {screen === "upload" && (
