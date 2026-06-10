@@ -1,0 +1,54 @@
+import { supabase } from "./supabase";
+
+export type Goal = {
+  id: string;
+  user_id: string;
+  title: string;
+  target_date: string | null;
+  progress: number;
+  reward_xp: number;
+  reward_point: number;
+  is_completed: boolean;
+  created_at: string;
+};
+
+export const getGoals = async (userId: string) => {
+  const { data, error } = await supabase
+    .from("goals")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_completed", false)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data as Goal[];
+};
+
+export const createGoal = async ({
+  userId,
+  title,
+  targetDate,
+}: {
+  userId: string;
+  title: string;
+  targetDate: string;
+}) => {
+  const { data, error } = await supabase
+    .from("goals")
+    .insert({
+      user_id: userId,
+      title,
+      target_date: targetDate || null,
+      progress: 0,
+      reward_xp: 100,
+      reward_point: 1000,
+      is_completed: false,
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  return data as Goal;
+};
