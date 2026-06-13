@@ -52,3 +52,21 @@ export const createGoal = async ({
 
   return data as Goal;
 };
+
+export const updateGoalProgress = async (
+  goalId: string,
+  nextProgress: number
+) => {
+  const { data, error } = await supabase
+    .from("goals")
+    .update({
+      progress: nextProgress,
+    })
+    .eq("id", goalId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  return data as Goal;
+};

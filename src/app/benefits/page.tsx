@@ -1,9 +1,10 @@
 "use client";
 
-"use client";
-
 import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import BottomTabBar from "../../components/home/BottomTabBar";
+import { supabase } from "../../lib/supabase";
+import { createGoal, getGoals, type Goal } from "../../lib/goals";
 
 const challenges = [
   {
@@ -46,7 +47,32 @@ const ads = [
   },
 ];
 
+const getDdayText = (date: string | null) => {
+  if (!date) return "목표일 미정";
+
+  const today = new Date();
+  const target = new Date(date);
+
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.ceil(
+    (target.getTime() - today.getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) return "D-DAY";
+  if (diffDays > 0) return `D-${diffDays}`;
+
+  return "지난 목표";
+};
+
 export default function BenefitsPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goalTitle, setGoalTitle] = useState("");
+  const [goalDate, setGoalDate] = useState("");
+  const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
   useEffect(() => {
@@ -58,6 +84,51 @@ export default function BenefitsPage() {
 
     return () => clearInterval(timer);
   }, []);
+ 
+    useEffect(() => {
+    const loadGoals = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (!currentUser) return;
+
+      const goalData = await getGoals(currentUser.id);
+      setGoals(goalData);
+    };
+
+    loadGoals();
+  }, []);
+
+  const handleCreateGoal = async () => {
+    if (!user) return;
+
+    if (!goalTitle.trim()) {
+      alert("목표명을 입력해주세요.");
+      return;
+    }
+
+    try {
+      const newGoal = await createGoal({
+        userId: user.id,
+        title: goalTitle,
+        targetDate: goalDate,
+      });
+
+      setGoals((prev) => [newGoal, ...prev]);
+      setGoalTitle("");
+      setGoalDate("");
+      setIsGoalFormOpen(false);
+
+      alert("목표가 생성되었습니다.");
+    } catch (error: any) {
+  console.error("목표 생성 실패:", error);
+  alert(`목표 생성 실패: ${error.message || JSON.stringify(error)}`);
+}
+  };
 
   return (
     <main className="min-h-screen bg-[#F6F7F9] pb-32">
@@ -88,6 +159,100 @@ export default function BenefitsPage() {
             리워드 보기
           </button>
         </section>
+
+               <section className="mb-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">
+              진행중인 목표
+            </h2>
+
+            <button
+              onClick={() => setIsGoalFormOpen(!isGoalFormOpen)}
+              className="rounded-full bg-gray-900 px-4 py-2 text-xs font-bold text-white"
+            >
+              + 목표 추가
+            </button>
+          </div>
+
+          {isGoalFormOpen && (
+            <div className="mb-3 rounded-3xl bg-white p-5 shadow-sm">
+              <input
+                value={goalTitle}
+                onChange={(e) => setGoalTitle(e.target.value)}
+                placeholder="목표 자격증명 예: SQLD"
+                className="mb-3 w-full rounded-2xl bg-gray-50 px-4 py-3 text-sm outline-none"
+              />
+
+              <input
+                type="date"
+                value={goalDate}
+                onChange={(e) => setGoalDate(e.target.value)}
+                className="mb-3 w-full rounded-2xl bg-gray-50 px-4 py-3 text-sm outline-none"
+              />
+
+              <button
+                onClick={handleCreateGoal}
+                className="w-full rounded-2xl bg-violet-600 py-3 text-sm font-bold text-white"
+              >
+                목표 저장하기
+              </button>
+            </div>
+          )}
+
+          {goals.length === 0 ? (
+            <div className="rounded-3xl bg-white p-5 text-sm text-gray-500 shadow-sm">
+              아직 진행중인 목표가 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {goals.map((goal) => (
+                <div
+                  key={goal.id}
+                  className="rounded-3xl bg-white p-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold text-violet-500">
+                        현재 목표
+                      </p>
+                      <p className="mt-1 text-lg font-bold text-gray-900">
+                       🎯 {goal.title}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-600">
+                      +{goal.reward_xp}XP · +{goal.reward_point}P
+                    </span>
+                  </div>
+
+                  <div className="mt-4 h-3 rounded-full bg-gray-100">
+                    <div
+                      className="h-3 rounded-full bg-violet-500"
+                      style={{ width: `${goal.progress}%` }}
+                    />
+                  </div>
+
+<div className="mt-3 flex gap-2">
+  <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-500">
+    {getDdayText(goal.target_date)}
+  </span>
+
+  <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-600">
+    진행률 {goal.progress}%
+  </span>
+</div>
+
+                  <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                    <span>진행률 {goal.progress}%</span>
+                   <span className="font-bold text-violet-500">
+  {getDdayText(goal.target_date)}
+</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>  
 
         <section className="mb-6">
           <h2 className="mb-3 text-lg font-bold text-gray-900">
