@@ -86,3 +86,32 @@ export const addXp = async (userId: string, currentXp: number, amount: number) =
 
   return data as Profile;
 };
+
+export const addXpAndPoint = async (
+  userId: string,
+  currentXp: number,
+  currentPoint: number,
+  xpAmount: number,
+  pointAmount: number
+) => {
+  const nextXp = currentXp + xpAmount;
+  const nextLevel = calculateLevel(nextXp);
+  const nextPoint = currentPoint + pointAmount;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      xp: nextXp,
+      level: nextLevel,
+      point: nextPoint,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  return data as Profile;
+};
+

@@ -1,10 +1,22 @@
 "use client";
 
+import {
+  getProfile,
+  addXpAndPoint,
+  type Profile,
+} from "../../lib/profiles";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import BottomTabBar from "../../components/home/BottomTabBar";
 import { supabase } from "../../lib/supabase";
-import { createGoal, getGoals, type Goal } from "../../lib/goals";
+import {
+  createGoal,
+  getGoals,
+  getCompletedGoals,
+  updateGoalProgress,
+  completeGoal,
+  type Goal,
+} from "../../lib/goals";
 
 const challenges = [
   {
@@ -69,7 +81,11 @@ const getDdayText = (date: string | null) => {
 
 export default function BenefitsPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [completedGoals, setCompletedGoals] = useState<Goal[]>([]);
+
   const [goalTitle, setGoalTitle] = useState("");
   const [goalDate, setGoalDate] = useState("");
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
@@ -98,6 +114,14 @@ export default function BenefitsPage() {
 
       const goalData = await getGoals(currentUser.id);
       setGoals(goalData);
+
+      const completedGoalData = await getCompletedGoals(currentUser.id);
+      setCompletedGoals(completedGoalData);
+      const profileData = await getProfile(
+  currentUser.id,
+  currentUser.email
+);
+setProfile(profileData);
     };
 
     loadGoals();
@@ -129,6 +153,57 @@ export default function BenefitsPage() {
   alert(`목표 생성 실패: ${error.message || JSON.stringify(error)}`);
 }
   };
+
+ const handleIncreaseProgress = async (goal: Goal) => {
+  const nextProgress = Math.min(goal.progress + 10, 100);
+
+  try {
+    const updatedGoal = await updateGoalProgress(
+      goal.id,
+      nextProgress
+    );
+
+    setGoals((prev) =>
+      prev.map((item) =>
+        item.id === goal.id ? updatedGoal : item
+      )
+    );
+  } catch (error) {
+    console.error(error);
+    alert("진행률 업데이트 실패");
+  }
+};
+
+const handleCompleteGoal = async (goal: Goal) => {
+  if (!user || !profile) return;
+
+  try {
+    await completeGoal(goal.id);
+
+    const updatedProfile = await addXpAndPoint(
+      user.id,
+      profile.xp,
+      profile.point,
+      goal.reward_xp,
+      goal.reward_point
+    );
+
+    setProfile(updatedProfile);
+
+    const goalData = await getGoals(user.id);
+setGoals(goalData);
+
+const completedGoalData = await getCompletedGoals(user.id);
+setCompletedGoals(completedGoalData);
+
+    alert(
+      `🎉 목표 달성!\n+${goal.reward_xp} XP\n+${goal.reward_point} P`
+    );
+  } catch (error) {
+    console.error(error);
+    alert("목표 완료 실패");
+  }
+};
 
   return (
     <main className="min-h-screen bg-[#F6F7F9] pb-32">
@@ -242,12 +317,22 @@ export default function BenefitsPage() {
   </span>
 </div>
 
-                  <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                    <span>진행률 {goal.progress}%</span>
-                   <span className="font-bold text-violet-500">
-  {getDdayText(goal.target_date)}
-</span>
-                  </div>
+{goal.progress >= 100 ? (
+  <button
+    onClick={() => handleCompleteGoal(goal)}
+    className="mt-4 w-full rounded-2xl bg-violet-600 py-3 text-sm font-bold text-white"
+  >
+    🎉 목표 완료하기
+  </button>
+) : (
+  <button
+    onClick={() => handleIncreaseProgress(goal)}
+    className="mt-4 w-full rounded-2xl bg-gray-900 py-3 text-sm font-bold text-white"
+  >
+    +10% 진행하기
+  </button>
+)}
+                
                 </div>
               ))}
             </div>
@@ -258,7 +343,6 @@ export default function BenefitsPage() {
           <h2 className="mb-3 text-lg font-bold text-gray-900">
             자격증 챌린지
           </h2>
-
           <div className="space-y-3">
             {challenges.map((item) => (
               <div key={item.title} className="rounded-3xl bg-white p-5 shadow-sm">
@@ -287,6 +371,44 @@ export default function BenefitsPage() {
             ))}
           </div>
         </section>
+        
+        <section className="mb-6">
+  <h2 className="mb-3 text-lg font-bold text-gray-900">
+    🏆 완료한 목표
+  </h2>
+
+  {completedGoals.length === 0 ? (
+    <div className="rounded-3xl bg-white p-5 text-sm text-gray-500 shadow-sm">
+      아직 완료한 목표가 없습니다.
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {completedGoals.map((goal) => (
+        <div
+          key={goal.id}
+          className="rounded-3xl border border-green-100 bg-green-50 p-5"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-green-600">
+                목표 달성 완료
+              </p>
+
+              <p className="mt-1 text-lg font-bold text-gray-900">
+                ✅ {goal.title}
+              </p>
+            </div>
+
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-green-600">
+              +{goal.reward_xp}XP
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
+
 
         <section className="mb-6">
           <h2 className="mb-3 text-lg font-bold text-gray-900">

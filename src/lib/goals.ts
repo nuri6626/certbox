@@ -25,6 +25,18 @@ export const getGoals = async (userId: string) => {
   return data as Goal[];
 };
 
+export const getCompletedGoals = async (userId: string) => {
+  const { data, error } = await supabase
+    .from("goals")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_completed", true)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data as Goal[];
+};
 export const createGoal = async ({
   userId,
   title,
@@ -61,6 +73,22 @@ export const updateGoalProgress = async (
     .from("goals")
     .update({
       progress: nextProgress,
+    })
+    .eq("id", goalId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  return data as Goal;
+};
+
+export const completeGoal = async (goalId: string) => {
+  const { data, error } = await supabase
+    .from("goals")
+    .update({
+      progress: 100,
+      is_completed: true,
     })
     .eq("id", goalId)
     .select("*")
