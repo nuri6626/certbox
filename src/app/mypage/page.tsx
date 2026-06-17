@@ -138,8 +138,8 @@ const handleSaveProfile = async () => {
 
             <div>
               <p className="text-lg font-bold text-gray-900">
-                {displayName}
-              </p>
+  {profile?.avatar_emoji || "🔥"} {displayName}
+</p>
               <p className="mt-1 text-sm font-semibold text-violet-600">
                 Lv.{level} {getLevelTitle(level)}
               </p>
