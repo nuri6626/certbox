@@ -217,8 +217,8 @@ setCompletedGoals(completedGoalData);
           </div>
 
           <div className="rounded-full bg-white px-4 py-2 text-sm font-bold text-orange-500 shadow-sm">
-            0P
-          </div>
+  {profile?.point ?? 0}P
+</div>
         </header>
 
         <section className="mb-5 rounded-3xl bg-white p-5 shadow-sm">

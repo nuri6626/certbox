@@ -1,19 +1,27 @@
 "use client";
 
+import { createAttendance, hasAttendedToday } from "../../lib/attendance";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import BottomTabBar from "../../components/home/BottomTabBar";
 import { supabase } from "../../lib/supabase";
 import {
+  addXp,
   getProfile,
   getLevelTitle,
   getNextLevelXp,
+  updateProfileDisplay,
   type Profile,
 } from "../../lib/profiles";
 
 export default function MyPage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAttendedToday, setIsAttendedToday] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editNickname, setEditNickname] = useState("");
+  const [editEmoji, setEditEmoji] = useState("🔥");
+  const [showEmojiOptions, setShowEmojiOptions] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -31,11 +39,67 @@ export default function MyPage() {
         );
 
         setProfile(profileData);
+        const attended = await hasAttendedToday(currentUser.id);
+setIsAttendedToday(attended);
       }
     };
 
     init();
   }, []);
+  const handleAttendance = async () => {
+  if (!user || !profile) return;
+
+  if (isAttendedToday) {
+    alert("오늘은 이미 출석했어요.");
+    return;
+  }
+
+  try {
+    await createAttendance(user.id);
+
+    const updatedProfile = await addXp(user.id, profile.xp, 1);
+    setProfile(updatedProfile);
+    setIsAttendedToday(true);
+
+    alert("출석 완료! +1 XP를 획득했어요.");
+  } catch (error) {
+    console.error(error);
+    alert("출석체크 실패");
+  }
+};
+
+const emojiOptions = [
+  "🔥", "☕", "📚", "🏅", "🚀", "👑", "📝", "💼",
+  "🎯", "✅", "💪", "🧠", "🦾", "🐣", "😎", "🤓",
+  "🫠", "💀", "⚡", "🌈", "🍀", "⭐", "💎", "🧩",
+  "📖", "🖊️", "🎓", "🏆", "📌", "🗂️", "🧭", "🛠️",
+];
+
+const handleSaveProfile = async () => {
+  if (!user) return;
+
+  if (!editNickname.trim()) {
+    alert("닉네임을 입력해주세요.");
+    return;
+  }
+
+  try {
+    const updatedProfile = await updateProfileDisplay(
+      user.id,
+      editNickname,
+      editEmoji
+    );
+
+    setProfile(updatedProfile);
+    setIsEditingProfile(false);
+    setShowEmojiOptions(false);
+
+    alert("프로필이 저장되었습니다.");
+  } catch (error) {
+    console.error(error);
+    alert("프로필 저장 실패");
+  }
+};
 
   const level = profile?.level ?? 1;
   const xp = profile?.xp ?? 0;
@@ -79,6 +143,16 @@ export default function MyPage() {
               <p className="mt-1 text-sm font-semibold text-violet-600">
                 Lv.{level} {getLevelTitle(level)}
               </p>
+              <button
+  onClick={() => {
+    setEditNickname(displayName);
+    setEditEmoji(profile?.avatar_emoji || "🔥");
+    setIsEditingProfile(true);
+  }}
+  className="mt-2 text-xs font-bold text-gray-400"
+>
+  프로필 편집
+</button>
             </div>
           </div>
 
@@ -92,7 +166,66 @@ export default function MyPage() {
           <p className="mt-2 text-xs text-gray-500">
             다음 레벨까지 {Math.max(0, requiredXp - currentProgressXp)} XP 남았어요
           </p>
-        </section>
+          <button
+  onClick={handleAttendance}
+  className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold ${
+    isAttendedToday
+      ? "bg-gray-100 text-gray-400"
+      : "bg-gray-900 text-white"
+  }`}
+>
+  {isAttendedToday ? "오늘 출석 완료" : "오늘 출석하기 +1 XP"}
+</button>
+                </section>
+
+        {isEditingProfile && (
+          <section className="mb-5 rounded-3xl bg-white p-5 shadow-sm">
+            <h3 className="mb-4 font-bold text-gray-900">
+              프로필 편집
+            </h3>
+
+            <input
+              value={editNickname}
+              onChange={(e) => setEditNickname(e.target.value)}
+              placeholder="닉네임 입력"
+              className="mb-3 w-full rounded-2xl bg-gray-50 px-4 py-3 text-sm outline-none"
+            />
+
+            <button
+              onClick={() =>
+                setShowEmojiOptions(!showEmojiOptions)
+              }
+              className="mb-3 rounded-2xl bg-gray-100 px-4 py-2 text-sm font-bold"
+            >
+              대표 이모지 {editEmoji}
+            </button>
+
+            {showEmojiOptions && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {emojiOptions.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => setEditEmoji(emoji)}
+                    className={`rounded-xl px-3 py-2 text-xl ${
+                      editEmoji === emoji
+                        ? "bg-violet-100"
+                        : "bg-gray-100"
+                    }`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={handleSaveProfile}
+              className="w-full rounded-2xl bg-violet-600 py-3 font-bold text-white"
+            >
+              저장하기
+            </button>
+          </section>
+        )}
 
         <section className="mb-5 grid grid-cols-3 gap-3">
           <div className="rounded-3xl bg-white p-4 text-center shadow-sm">

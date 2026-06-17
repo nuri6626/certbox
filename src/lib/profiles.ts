@@ -4,6 +4,7 @@ export type Profile = {
   id: string;
   email: string | null;
   nickname: string | null;
+  avatar_emoji: string | null;
   xp: number;
   level: number;
   point: number;
@@ -11,12 +12,14 @@ export type Profile = {
 };
 
 export const getLevelTitle = (level: number) => {
-  if (level >= 50) return "커리어의 신";
-  if (level >= 30) return "커리어 마스터";
-  if (level >= 20) return "전문가";
-  if (level >= 10) return "실전러";
-  if (level >= 5) return "수험생";
-  return "신입생";
+  if (level >= 50) return "👑 인간 국가기술자격증";
+  if (level >= 40) return "🚀 스펙 괴물";
+  if (level >= 30) return "🏅 자격증 중독자";
+  if (level >= 20) return "✅ 합격 맛집";
+  if (level >= 15) return "🔥 벼락치기 장인";
+  if (level >= 10) return "☕ 스터디카페 VIP";
+  if (level >= 5) return "📚 기출 수집가";
+  return "😵 접수만 함";
 };
 
 export const calculateLevel = (xp: number) => {
@@ -43,14 +46,15 @@ export const getProfile = async (userId: string, email?: string | null) => {
   }
 
   const newProfile = {
-    id: userId,
-    email: email ?? null,
-    nickname: email?.split("@")[0] ?? "커리어스 유저",
-    xp: 0,
-    level: 1,
-    point: 0,
-    streak: 0,
-  };
+  id: userId,
+  email: email ?? null,
+  nickname: email?.split("@")[0] ?? "커리어스 유저",
+  avatar_emoji: "🔥",
+  xp: 0,
+  level: 1,
+  point: 0,
+  streak: 0,
+};
 
   const { data: created, error: createError } = await supabase
     .from("profiles")
@@ -104,6 +108,27 @@ export const addXpAndPoint = async (
       xp: nextXp,
       level: nextLevel,
       point: nextPoint,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  return data as Profile;
+};
+
+export const updateProfileDisplay = async (
+  userId: string,
+  nickname: string,
+  avatarEmoji: string
+) => {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      nickname,
+      avatar_emoji: avatarEmoji,
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId)
