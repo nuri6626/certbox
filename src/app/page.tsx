@@ -21,6 +21,7 @@ import type { Exam } from "../types/exam";
 import { supabase } from "../lib/supabase";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { hasAttendedToday } from "../lib/attendance";
 
 const mockCertificates: Certificate[] = [];
 
@@ -47,8 +48,13 @@ const categoryOptions = [
 ];
 
 export default function Home() {
-  const [screen, setScreen] =
-    useState<"home" | "upload" | "result" | "detail" | "schedule" | "vault">("home");
+  const [screen, setScreen] = useState<
+    "home" | "upload" | "result" | "detail" | "schedule" | "vault"
+  >("home");
+
+  const [homeUser, setHomeUser] = useState<User | null>(null);
+  const [homeProfile, setHomeProfile] = useState<Profile | null>(null);
+  const [homeAttendedToday, setHomeAttendedToday] = useState(false);
 
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -76,169 +82,190 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [exams, setExams] = useState<Exam[]>([]);
-const [examForm, setExamForm] = useState({
-  name: "",
-  applyStart: "",
-  applyEnd: "",
-  examDate: "",
-  resultDate: "",
-  memo: "",
-});
-const [user, setUser] = useState<User | null>(null);
-const [profile, setProfile] = useState<Profile | null>(null);
-const [authEmail, setAuthEmail] = useState("");
-const [authPassword, setAuthPassword] = useState("");
-const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-const [isAuthLoading, setIsAuthLoading] = useState(true);
-const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-const [canInstall, setCanInstall] = useState(false);
+  const [examForm, setExamForm] = useState({
+    name: "",
+    applyStart: "",
+    applyEnd: "",
+    examDate: "",
+    resultDate: "",
+    memo: "",
+  });
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [canInstall, setCanInstall] = useState(false);
 
-const loadCertificates = async () => {
-  if (!user) return;
+  const loadCertificates = async () => {
+    if (!user) return;
 
-  try {
-    const data = await getCertificates(user.id);
-    setCertificates(data);
-  } catch (error) {
-    console.error("불러오기 실패:", error);
-  }
-}; 
-
-const loadProfile = async () => {
-  if (!user) return;
-
-  try {
-    const profileData = await getProfile(user.id, user.email);
-    setProfile(profileData);
-  } catch (error) {
-    console.error("프로필 불러오기 실패:", error);
-  }
-};
-
- const loadExams = async () => {
-  if (!user) return;
-
-  try {
-    const examData = await getExams(user.id);
-    setExams(examData);
-  } catch (error) {
-  setExams([]);
-  }
-}; 
-
-  useEffect(() => {
-  const handleBeforeInstallPrompt = (event: any) => {
-    event.preventDefault();
-    setDeferredPrompt(event);
-    setCanInstall(true);
+    try {
+      const data = await getCertificates(user.id);
+      setCertificates(data);
+    } catch (error) {
+      console.error("불러오기 실패:", error);
+    }
   };
 
-  window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  const loadProfile = async () => {
+    if (!user) return;
 
-  return () => {
-    window.removeEventListener(
-      "beforeinstallprompt",
-      handleBeforeInstallPrompt
-    );
+    try {
+      const profileData = await getProfile(user.id, user.email);
+      setProfile(profileData);
+    } catch (error) {
+      console.error("프로필 불러오기 실패:", error);
+    }
   };
-}, []);
+
+  const loadExams = async () => {
+    if (!user) return;
+
+    try {
+      const examData = await getExams(user.id);
+      setExams(examData);
+    } catch (error) {
+      setExams([]);
+    }
+  };
+
   useEffect(() => {
-  const initAuth = async () => {
+    const handleBeforeInstallPrompt = (event: any) => {
+      event.preventDefault();
+      setDeferredPrompt(event);
+      setCanInstall(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      );
+    };
+  }, []);
+  useEffect(() => {
+    const initAuth = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      setUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    };
+
+    initAuth();
+
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
 
-    setUser(session?.user ?? null);
-    setIsAuthLoading(false);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadCertificates();
+      loadExams();
+      loadProfile();
+    } else {
+      setCertificates([]);
+      setExams([]);
+      setProfile(null);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const loadHomeSummary = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const currentUser = session?.user ?? null;
+      setHomeUser(currentUser);
+
+      if (currentUser) {
+        const profileData = await getProfile(currentUser.id, currentUser.email);
+        setHomeProfile(profileData);
+
+        const attended = await hasAttendedToday(currentUser.id);
+        setHomeAttendedToday(attended);
+      }
+    };
+
+    loadHomeSummary();
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) {
+      alert("현재 브라우저에서는 설치 버튼을 사용할 수 없습니다.");
+      return;
+    }
+
+    deferredPrompt.prompt();
+
+    const { outcome } = await deferredPrompt.userChoice;
+
+    if (outcome === "accepted") {
+      setDeferredPrompt(null);
+      setCanInstall(false);
+    }
+  };
+  const handleEmailAuth = async () => {
+    if (!authEmail || !authPassword) {
+      alert("이메일과 비밀번호를 입력해주세요.");
+      return;
+    }
+
+    const { error } =
+      authMode === "signup"
+        ? await supabase.auth.signUp({
+            email: authEmail,
+            password: authPassword,
+          })
+        : await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password: authPassword,
+          });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (authMode === "signup") {
+      alert("회원가입 완료");
+    }
   };
 
-  initAuth();
+  const handleOAuthLogin = async (provider: "google" | "kakao") => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
 
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setUser(session?.user ?? null);
-  });
-
-  return () => {
-    subscription.unsubscribe();
+    if (error) {
+      alert(error.message);
+    }
   };
-}, []);
 
-useEffect(() => {
-  if (user) {
-    loadCertificates();
-    loadExams();
-    loadProfile();
-  } else {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
     setCertificates([]);
-    setExams([]);
-    setProfile(null);
-  }
-}, [user]);
-
-const handleInstallApp = async () => {
-  if (!deferredPrompt) {
-    alert("현재 브라우저에서는 설치 버튼을 사용할 수 없습니다.");
-    return;
-  }
-
-  deferredPrompt.prompt();
-
-  const { outcome } = await deferredPrompt.userChoice;
-
-  if (outcome === "accepted") {
-    setDeferredPrompt(null);
-    setCanInstall(false);
-  }
-};
-const handleEmailAuth = async () => {
-  if (!authEmail || !authPassword) {
-    alert("이메일과 비밀번호를 입력해주세요.");
-    return;
-  }
-
-  const { error } =
-    authMode === "signup"
-      ? await supabase.auth.signUp({
-          email: authEmail,
-          password: authPassword,
-        })
-      : await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword,
-        });
-
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  if (authMode === "signup") {
-    alert("회원가입 완료");
-  }
-};
-
-const handleOAuthLogin = async (provider: "google" | "kakao") => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: {
-      redirectTo: window.location.origin,
-    },
-  });
-
-  if (error) {
-    alert(error.message);
-  }
-};
-
-const handleLogout = async () => {
-  await supabase.auth.signOut();
-  setUser(null);
-  setCertificates([]);
-  setSelectedCertificate(null);
-  setScreen("home");
-};
+    setSelectedCertificate(null);
+    setScreen("home");
+  };
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
@@ -296,123 +323,125 @@ const handleLogout = async () => {
     }
   };
 
- const handleSaveExam = async () => {
-  if (!user) {
-    alert("로그인이 필요합니다.");
-    return;
-  }
+  const handleSaveExam = async () => {
+    if (!user) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
 
-  try {
-    await createExam({
-      userId: user.id,
-      name: examForm.name,
-      applyStart: examForm.applyStart,
-      applyEnd: examForm.applyEnd,
-      examDate: examForm.examDate,
-      resultDate: examForm.resultDate,
-      memo: examForm.memo,
-    });
+    try {
+      await createExam({
+        userId: user.id,
+        name: examForm.name,
+        applyStart: examForm.applyStart,
+        applyEnd: examForm.applyEnd,
+        examDate: examForm.examDate,
+        resultDate: examForm.resultDate,
+        memo: examForm.memo,
+      });
 
-    alert("일정이 저장되었습니다.");
+      alert("일정이 저장되었습니다.");
 
-    setExamForm({
-      name: "",
-      applyStart: "",
-      applyEnd: "",
-      examDate: "",
-      resultDate: "",
-      memo: "",
-    });
+      setExamForm({
+        name: "",
+        applyStart: "",
+        applyEnd: "",
+        examDate: "",
+        resultDate: "",
+        memo: "",
+      });
 
-    await loadExams();
-  } catch (error) {
-    console.error(error);
-    alert("일정 저장 실패");
-  }
-};
+      await loadExams();
+    } catch (error) {
+      console.error(error);
+      alert("일정 저장 실패");
+    }
+  };
 
   const handleSave = async () => {
-  if (!user) {
-    alert("로그인이 필요합니다.");
-    return;
-  }
+    if (!user) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
 
-  let imageUrl = "";
+    let imageUrl = "";
 
-const clean = (value: string | null | undefined) =>
-  (value || "")
-    .replace(/\s+/g, "")
-    .replace(/[·ㆍ\-()]/g, "")
-    .toLowerCase();
+    const clean = (value: string | null | undefined) =>
+      (value || "")
+        .replace(/\s+/g, "")
+        .replace(/[·ㆍ\-()]/g, "")
+        .toLowerCase();
 
-const normalizedTitle = clean(form.title);
-const normalizedIssuer = clean(form.issuer);
-const normalizedNumber = clean(form.certificateNumber);
+    const normalizedTitle = clean(form.title);
+    const normalizedIssuer = clean(form.issuer);
+    const normalizedNumber = clean(form.certificateNumber);
 
-const { data: currentCertificates, error: duplicateError } = await supabase
-  .from("certificates")
-  .select("id, title, issuer, certificate_number, holder_name, issue_date")
-  .eq("user_id", user.id);
+    const { data: currentCertificates, error: duplicateError } = await supabase
+      .from("certificates")
+      .select("id, title, issuer, certificate_number, holder_name, issue_date")
+      .eq("user_id", user.id);
 
-if (duplicateError) {
-  alert(`중복 확인 실패: ${duplicateError.message}`);
-  return;
-}
+    if (duplicateError) {
+      alert(`중복 확인 실패: ${duplicateError.message}`);
+      return;
+    }
 
-const isCurrentDuplicate = currentCertificates?.some((cert) => {
-  const sameTitle = clean(cert.title) === normalizedTitle;
-  const sameIssuer = clean(cert.issuer) === normalizedIssuer;
+    const isCurrentDuplicate = currentCertificates?.some((cert) => {
+      const sameTitle = clean(cert.title) === normalizedTitle;
+      const sameIssuer = clean(cert.issuer) === normalizedIssuer;
 
-  if (normalizedNumber) {
-    return (
-      sameTitle &&
-      sameIssuer &&
-      clean(cert.certificate_number) === normalizedNumber
-    );
-  }
+      if (normalizedNumber) {
+        return (
+          sameTitle &&
+          sameIssuer &&
+          clean(cert.certificate_number) === normalizedNumber
+        );
+      }
 
-  return (
-    sameTitle &&
-    sameIssuer &&
-    clean(cert.holder_name) === clean(form.holderName) &&
-    (cert.issue_date || "") === (form.issueDate || "")
-  );
-});
+      return (
+        sameTitle &&
+        sameIssuer &&
+        clean(cert.holder_name) === clean(form.holderName) &&
+        (cert.issue_date || "") === (form.issueDate || "")
+      );
+    });
 
-if (isCurrentDuplicate) {
-  alert("이미 보관함에 등록된 인증서입니다.");
-  return;
-}
+    if (isCurrentDuplicate) {
+      alert("이미 보관함에 등록된 인증서입니다.");
+      return;
+    }
 
-const { data: historyRows, error: historyError } = await supabase
-  .from("certificate_history")
-  .select("id, title, issuer, certificate_number, holder_name, issue_date, rewarded")
-  .eq("user_id", user.id);
+    const { data: historyRows, error: historyError } = await supabase
+      .from("certificate_history")
+      .select(
+        "id, title, issuer, certificate_number, holder_name, issue_date, rewarded",
+      )
+      .eq("user_id", user.id);
 
-if (historyError) {
-  alert(`등록 이력 확인 실패: ${historyError.message}`);
-  return;
-}
+    if (historyError) {
+      alert(`등록 이력 확인 실패: ${historyError.message}`);
+      return;
+    }
 
-const hasRewardHistory = historyRows?.some((history) => {
-  const sameTitle = clean(history.title) === normalizedTitle;
-  const sameIssuer = clean(history.issuer) === normalizedIssuer;
+    const hasRewardHistory = historyRows?.some((history) => {
+      const sameTitle = clean(history.title) === normalizedTitle;
+      const sameIssuer = clean(history.issuer) === normalizedIssuer;
 
-  if (normalizedNumber) {
-    return (
-      sameTitle &&
-      sameIssuer &&
-      clean(history.certificate_number) === normalizedNumber
-    );
-  }
+      if (normalizedNumber) {
+        return (
+          sameTitle &&
+          sameIssuer &&
+          clean(history.certificate_number) === normalizedNumber
+        );
+      }
 
-  return (
-    sameTitle &&
-    sameIssuer &&
-    clean(history.holder_name) === clean(form.holderName) &&
-    (history.issue_date || "") === (form.issueDate || "")
-  );
-});
+      return (
+        sameTitle &&
+        sameIssuer &&
+        clean(history.holder_name) === clean(form.holderName) &&
+        (history.issue_date || "") === (form.issueDate || "")
+      );
+    });
 
     if (selectedFile) {
       const fileExt = selectedFile.name.split(".").pop();
@@ -459,19 +488,19 @@ const hasRewardHistory = historyRows?.some((history) => {
 
     await loadCertificates();
 
-if (profile && user) {
-  const updatedProfile = await addXp(user.id, profile.xp, 10);
-  setProfile(updatedProfile);
-  alert("저장 완료! +10 XP를 획득했어요.");
-} else {
-  alert("저장 완료!");
-}
+    if (profile && user) {
+      const updatedProfile = await addXp(user.id, profile.xp, 10);
+      setProfile(updatedProfile);
+      alert("저장 완료! +10 XP를 획득했어요.");
+    } else {
+      alert("저장 완료!");
+    }
 
-setPreview(null);
-setImageBase64(null);
-setSelectedFile(null);
-setForm(mockOcrResult);
-setScreen("home");
+    setPreview(null);
+    setImageBase64(null);
+    setSelectedFile(null);
+    setForm(mockOcrResult);
+    setScreen("home");
   };
 
   const handleDelete = async () => {
@@ -481,10 +510,10 @@ setScreen("home");
     if (!isConfirmed) return;
 
     const { error } = await supabase
-  .from("certificates")
-  .delete()
-  .eq("id", selectedCertificate.id)
-  .eq("user_id", user?.id);
+      .from("certificates")
+      .delete()
+      .eq("id", selectedCertificate.id)
+      .eq("user_id", user?.id);
 
     if (error) {
       alert(`삭제에 실패했습니다: ${error.message}`);
@@ -519,20 +548,20 @@ setScreen("home");
     if (!selectedCertificate) return;
 
     const { error } = await supabase
-  .from("certificates")
-  .update({
-    title: editForm.title,
-    issuer: editForm.issuer,
-    holder_name: editForm.holderName,
-    issue_date: editForm.issueDate || null,
-    expiry_date: editForm.expiryDate || null,
-    certificate_number: editForm.certificateNumber,
-    category: editForm.category || "기타",
-    score: editForm.score || "",
-    grade: editForm.grade || "",
-  })
-  .eq("id", selectedCertificate.id)
-  .eq("user_id", user?.id);
+      .from("certificates")
+      .update({
+        title: editForm.title,
+        issuer: editForm.issuer,
+        holder_name: editForm.holderName,
+        issue_date: editForm.issueDate || null,
+        expiry_date: editForm.expiryDate || null,
+        certificate_number: editForm.certificateNumber,
+        category: editForm.category || "기타",
+        score: editForm.score || "",
+        grade: editForm.grade || "",
+      })
+      .eq("id", selectedCertificate.id)
+      .eq("user_id", user?.id);
 
     if (error) {
       alert(`수정에 실패했습니다: ${error.message}`);
@@ -565,22 +594,22 @@ setScreen("home");
     return `D-${diffDays}`;
   };
   const getDdayText = (date: string) => {
-  if (!date) return "";
+    if (!date) return "";
 
-  const today = new Date();
-  const target = new Date(date);
+    const today = new Date();
+    const target = new Date(date);
 
-  today.setHours(0, 0, 0, 0);
-  target.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
 
-  const diffDays = Math.ceil(
-    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
+    const diffDays = Math.ceil(
+      (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
 
-  if (diffDays === 0) return "D-DAY";
-  if (diffDays > 0) return `D-${diffDays}`;
-  return "지난 일정";
-};
+    if (diffDays === 0) return "D-DAY";
+    if (diffDays > 0) return `D-${diffDays}`;
+    return "지난 일정";
+  };
 
   const categories = ["전체", ...categoryOptions];
 
@@ -608,283 +637,347 @@ setScreen("home");
     const expiry = new Date(cert.expiryDate);
 
     const diffDays = Math.ceil(
-      (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     return diffDays <= 30;
   });
 
   const upcomingExamEvents = exams
-  .flatMap((exam) => [
-    {
-      id: `${exam.id}-apply-start`,
-      examName: exam.name,
-      label: "접수 시작",
-      date: exam.applyStart,
-    },
-    {
-      id: `${exam.id}-apply-end`,
-      examName: exam.name,
-      label: "접수 마감",
-      date: exam.applyEnd,
-    },
-    {
-      id: `${exam.id}-exam`,
-      examName: exam.name,
-      label: "시험일",
-      date: exam.examDate,
-    },
-    {
-      id: `${exam.id}-result`,
-      examName: exam.name,
-      label: "발표일",
-      date: exam.resultDate,
-    },
-  ])
-  .filter((event) => {
-    if (!event.date) return false;
+    .flatMap((exam) => [
+      {
+        id: `${exam.id}-apply-start`,
+        examName: exam.name,
+        label: "접수 시작",
+        date: exam.applyStart,
+      },
+      {
+        id: `${exam.id}-apply-end`,
+        examName: exam.name,
+        label: "접수 마감",
+        date: exam.applyEnd,
+      },
+      {
+        id: `${exam.id}-exam`,
+        examName: exam.name,
+        label: "시험일",
+        date: exam.examDate,
+      },
+      {
+        id: `${exam.id}-result`,
+        examName: exam.name,
+        label: "발표일",
+        date: exam.resultDate,
+      },
+    ])
+    .filter((event) => {
+      if (!event.date) return false;
 
-    const today = new Date();
-    const target = new Date(event.date);
+      const today = new Date();
+      const target = new Date(event.date);
 
-    today.setHours(0, 0, 0, 0);
-    target.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      target.setHours(0, 0, 0, 0);
 
-    const diffDays = Math.ceil(
-      (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
+      const diffDays = Math.ceil(
+        (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+      );
 
-    return diffDays >= 0 && diffDays <= 7;
-  })
-  .sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
+      return diffDays >= 0 && diffDays <= 7;
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   if (isAuthLoading) {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F6F7F9] px-5 text-gray-900">
-      <p className="text-sm text-gray-500">CertBox 불러오는 중...</p>
-    </main>
-  );
-}
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F6F7F9] px-5 text-gray-900">
+        <p className="text-sm text-gray-500">CertBox 불러오는 중...</p>
+      </main>
+    );
+  }
 
-if (!user) {
-  return (
-    <main className="min-h-screen bg-[#F6F7F9] px-5 py-10 text-gray-900">
-      <section className="mx-auto max-w-md">
-        <header className="mb-8">
-          <p className="text-sm text-gray-500">CertBox</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight">
-            내 인증서를 안전하게 보관하세요
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-gray-500">
-            자격증, 수료증, 어학성적을 AI로 정리하고 만료일까지 관리합니다.
-          </p>
-        </header>
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-[#F6F7F9] px-5 py-10 text-gray-900">
+        <section className="mx-auto max-w-md">
+          <header className="mb-8">
+            <p className="text-sm text-gray-500">CertBox</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">
+              내 인증서를 안전하게 보관하세요
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-gray-500">
+              자격증, 수료증, 어학성적을 AI로 정리하고 만료일까지 관리합니다.
+            </p>
+          </header>
 
-        <div className="rounded-3xl bg-white p-5 shadow-sm">
-          <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
-            <button
-              onClick={() => setAuthMode("login")}
-              className={`rounded-xl py-3 text-sm font-bold ${
-                authMode === "login"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500"
-              }`}
-            >
-              로그인
-            </button>
+          <div className="rounded-3xl bg-white p-5 shadow-sm">
+            <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
+              <button
+                onClick={() => setAuthMode("login")}
+                className={`rounded-xl py-3 text-sm font-bold ${
+                  authMode === "login"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                로그인
+              </button>
 
-            <button
-              onClick={() => setAuthMode("signup")}
-              className={`rounded-xl py-3 text-sm font-bold ${
-                authMode === "signup"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500"
-              }`}
-            >
-              회원가입
-            </button>
+              <button
+                onClick={() => setAuthMode("signup")}
+                className={`rounded-xl py-3 text-sm font-bold ${
+                  authMode === "signup"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                회원가입
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="이메일"
+                className="w-full rounded-2xl bg-gray-50 px-4 py-4 text-base outline-none"
+              />
+
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                placeholder="비밀번호"
+                className="w-full rounded-2xl bg-gray-50 px-4 py-4 text-base outline-none"
+              />
+
+              <button
+                onClick={handleEmailAuth}
+                className="w-full rounded-3xl bg-gray-900 py-4 text-base font-bold text-white shadow-md"
+              >
+                {authMode === "login" ? "이메일로 로그인" : "회원가입하기"}
+              </button>
+            </div>
+
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs text-gray-400">또는</span>
+              <div className="h-px flex-1 bg-gray-200" />
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => handleOAuthLogin("google")}
+                className="w-full rounded-3xl bg-white py-4 text-base font-bold text-gray-800 shadow-sm ring-1 ring-gray-200"
+              >
+                Google로 계속하기
+              </button>
+
+              <button
+                onClick={() => handleOAuthLogin("kakao")}
+                className="w-full rounded-3xl bg-[#FEE500] py-4 text-base font-bold text-gray-900 shadow-sm"
+              >
+                카카오로 계속하기
+              </button>
+            </div>
           </div>
-
-          <div className="space-y-3">
-            <input
-              type="email"
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-              placeholder="이메일"
-              className="w-full rounded-2xl bg-gray-50 px-4 py-4 text-base outline-none"
-            />
-
-            <input
-              type="password"
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              placeholder="비밀번호"
-              className="w-full rounded-2xl bg-gray-50 px-4 py-4 text-base outline-none"
-            />
-
-            <button
-              onClick={handleEmailAuth}
-              className="w-full rounded-3xl bg-gray-900 py-4 text-base font-bold text-white shadow-md"
-            >
-              {authMode === "login" ? "이메일로 로그인" : "회원가입하기"}
-            </button>
-          </div>
-
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gray-200" />
-            <span className="text-xs text-gray-400">또는</span>
-            <div className="h-px flex-1 bg-gray-200" />
-          </div>
-
-          <div className="space-y-3">
-            <button
-              onClick={() => handleOAuthLogin("google")}
-              className="w-full rounded-3xl bg-white py-4 text-base font-bold text-gray-800 shadow-sm ring-1 ring-gray-200"
-            >
-              Google로 계속하기
-            </button>
-
-            <button
-              onClick={() => handleOAuthLogin("kakao")}
-              className="w-full rounded-3xl bg-[#FEE500] py-4 text-base font-bold text-gray-900 shadow-sm"
-            >
-              카카오로 계속하기
-            </button>
-          </div>
-        </div>
-       
-      </section>
-    </main>
-  );
-}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#F6F7F9] px-5 py-6 text-gray-900">
       <section className="mx-auto max-w-md">
-      {screen === "home" && (
-  <CareerHome
-    certificates={certificates}
-    filteredCertificates={filteredCertificates}
-    upcomingExamEvents={upcomingExamEvents}
-    getExpiryText={getExpiryText}
-    getDdayText={getDdayText}
-    searchTerm={searchTerm}
-    setSearchTerm={setSearchTerm}
-    setScreen={setScreen}
-    setSelectedCertificate={setSelectedCertificate}
-    setIsEditing={setIsEditing}
-    handleLogout={handleLogout}
-  />
-)} 
+        {screen === "home" && (
+          <>
+            <section className="mb-5 rounded-3xl bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-violet-500">
+                    오늘의 커리어스
+                  </p>
+                  <h2 className="mt-1 text-xl font-extrabold text-gray-900">
+                    {homeProfile?.avatar_emoji || "🔥"}{" "}
+                    {homeProfile?.nickname ||
+                      homeUser?.email?.split("@")[0] ||
+                      "커리어스 유저"}
+                  </h2>
+                </div>
 
-{screen === "vault" && (
-  <section>
-    <header className="mb-5">
-      <p className="text-sm text-gray-500">커리어스</p>
-      <h1 className="mt-1 text-2xl font-bold">보관함</h1>
-      <p className="mt-2 text-sm text-gray-500">
-        등록한 인증서를 한눈에 확인하세요.
-      </p>
-    </header>
+                <div className="rounded-2xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-600">
+                  Lv.{homeProfile?.level || 1}
+                </div>
+              </div>
 
-    {expiringCertificates.length > 0 && (
-      <div className="mb-5 rounded-3xl bg-orange-50 p-4 shadow-sm">
-        <p className="text-xs font-bold text-orange-500">만료 임박</p>
-        <p className="mt-1 text-sm font-bold text-gray-900">
-          {expiringCertificates[0].title} 만료 임박{" "}
-          {getExpiryText(expiringCertificates[0].expiryDate)}
-        </p>
-      </div>
-    )}
+              <p className="mb-4 text-sm font-semibold text-gray-500">
+                {getLevelTitle(homeProfile?.level || 1)}
+              </p>
 
-    <button
-      onClick={() => setScreen("upload")}
-      className="mb-5 flex w-full items-center justify-between rounded-3xl bg-gray-900 p-5 text-left text-white shadow-sm"
-    >
-      <div>
-        <p className="text-lg font-bold">인증서 등록</p>
-        <p className="mt-1 text-sm text-gray-300">
-          자격증, 수료증, 어학성적을 추가하세요
-        </p>
-      </div>
-      <span className="text-3xl font-light">+</span>
-    </button>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-2xl bg-gray-50 p-3 text-center">
+                  <p className="text-lg font-extrabold text-gray-900">
+                    {homeProfile?.xp || 0}
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-gray-400">
+                    XP
+                  </p>
+                </div>
 
-    <div className="mb-5">
-      <input
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="자격증명, 기관, 이름, 번호 검색"
-        className="w-full rounded-3xl bg-white px-5 py-4 text-base shadow-sm outline-none placeholder:text-gray-400"
-      />
-    </div>
+                <div className="rounded-2xl bg-gray-50 p-3 text-center">
+                  <p className="text-lg font-extrabold text-gray-900">
+                    {homeProfile?.point || 0}
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-gray-400">
+                    포인트
+                  </p>
+                </div>
 
-    <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-lg font-bold text-gray-900">
-        전체 인증서 {filteredCertificates.length}개
-      </h2>
-      <span className="text-xs text-gray-400">최근 등록순</span>
-    </div>
+                <div className="rounded-2xl bg-gray-50 p-3 text-center">
+                  <p className="text-lg font-extrabold text-gray-900">
+                    {homeProfile?.streak || 0}일
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-gray-400">
+                    연속출석
+                  </p>
+                </div>
+              </div>
 
-    {filteredCertificates.length === 0 ? (
-      <div className="rounded-3xl bg-white p-6 text-center text-sm text-gray-500 shadow-sm">
-        등록된 인증서가 없습니다.
-      </div>
-    ) : (
-      <div className="grid grid-cols-2 gap-3">
-        {filteredCertificates.map((cert, index) => (
-          <article
-            key={cert.id}
-            onClick={() => {
-              setSelectedCertificate(cert);
-              setIsEditing(false);
-              setScreen("detail");
-            }}
-            className="cursor-pointer rounded-3xl bg-white p-4 shadow-sm active:scale-[0.99]"
-          >
-            {index < 2 && (
-              <span className="mb-3 inline-block rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-bold text-violet-500">
-                최근 등록
-              </span>
-            )}
+              <div
+                className={`mt-4 rounded-2xl px-4 py-3 text-center text-sm font-bold ${
+                  homeAttendedToday
+                    ? "bg-violet-50 text-violet-600"
+                    : "bg-gray-900 text-white"
+                }`}
+              >
+                {homeAttendedToday
+                  ? "오늘 출석 완료 ✅"
+                  : "오늘 아직 출석 전이에요"}
+              </div>
+            </section>
 
-            {cert.imageUrl ? (
-              <img
-                src={cert.imageUrl}
-                alt={cert.title}
-                className="mb-3 h-24 w-full rounded-2xl object-cover"
-              />
-            ) : (
-              <div className="mb-3 flex h-24 w-full items-center justify-center rounded-2xl bg-violet-50 text-xs font-bold text-violet-500">
-                CERT
+            <CareerHome
+              certificates={certificates}
+              filteredCertificates={filteredCertificates}
+              upcomingExamEvents={upcomingExamEvents}
+              getExpiryText={getExpiryText}
+              getDdayText={getDdayText}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              setScreen={setScreen}
+              setSelectedCertificate={setSelectedCertificate}
+              setIsEditing={setIsEditing}
+              handleLogout={handleLogout}
+            />
+          </>
+        )}
+
+        {screen === "vault" && (
+          <section>
+            <header className="mb-5">
+              <p className="text-sm text-gray-500">커리어스</p>
+              <h1 className="mt-1 text-2xl font-bold">보관함</h1>
+              <p className="mt-2 text-sm text-gray-500">
+                등록한 인증서를 한눈에 확인하세요.
+              </p>
+            </header>
+
+            {expiringCertificates.length > 0 && (
+              <div className="mb-5 rounded-3xl bg-orange-50 p-4 shadow-sm">
+                <p className="text-xs font-bold text-orange-500">만료 임박</p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {expiringCertificates[0].title} 만료 임박{" "}
+                  {getExpiryText(expiringCertificates[0].expiryDate)}
+                </p>
               </div>
             )}
 
-            <p className="line-clamp-2 text-sm font-bold text-gray-900">
-              {cert.title}
-            </p>
+            <button
+              onClick={() => setScreen("upload")}
+              className="mb-5 flex w-full items-center justify-between rounded-3xl bg-gray-900 p-5 text-left text-white shadow-sm"
+            >
+              <div>
+                <p className="text-lg font-bold">인증서 등록</p>
+                <p className="mt-1 text-sm text-gray-300">
+                  자격증, 수료증, 어학성적을 추가하세요
+                </p>
+              </div>
+              <span className="text-3xl font-light">+</span>
+            </button>
 
-            <p className="mt-1 line-clamp-1 text-xs text-gray-500">
-              {cert.issuer}
-            </p>
+            <div className="mb-5">
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="자격증명, 기관, 이름, 번호 검색"
+                className="w-full rounded-3xl bg-white px-5 py-4 text-base shadow-sm outline-none placeholder:text-gray-400"
+              />
+            </div>
 
-            <p className="mt-3 text-xs font-semibold text-gray-400">
-              {cert.issueDate || "발급일 없음"}
-            </p>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">
+                전체 인증서 {filteredCertificates.length}개
+              </h2>
+              <span className="text-xs text-gray-400">최근 등록순</span>
+            </div>
 
-            {cert.expiryDate && (
-              <p className="mt-1 text-xs font-bold text-orange-500">
-                {getExpiryText(cert.expiryDate)}
-              </p>
+            {filteredCertificates.length === 0 ? (
+              <div className="rounded-3xl bg-white p-6 text-center text-sm text-gray-500 shadow-sm">
+                등록된 인증서가 없습니다.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {filteredCertificates.map((cert, index) => (
+                  <article
+                    key={cert.id}
+                    onClick={() => {
+                      setSelectedCertificate(cert);
+                      setIsEditing(false);
+                      setScreen("detail");
+                    }}
+                    className="cursor-pointer rounded-3xl bg-white p-4 shadow-sm active:scale-[0.99]"
+                  >
+                    {index < 2 && (
+                      <span className="mb-3 inline-block rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-bold text-violet-500">
+                        최근 등록
+                      </span>
+                    )}
+
+                    {cert.imageUrl ? (
+                      <img
+                        src={cert.imageUrl}
+                        alt={cert.title}
+                        className="mb-3 h-24 w-full rounded-2xl object-cover"
+                      />
+                    ) : (
+                      <div className="mb-3 flex h-24 w-full items-center justify-center rounded-2xl bg-violet-50 text-xs font-bold text-violet-500">
+                        CERT
+                      </div>
+                    )}
+
+                    <p className="line-clamp-2 text-sm font-bold text-gray-900">
+                      {cert.title}
+                    </p>
+
+                    <p className="mt-1 line-clamp-1 text-xs text-gray-500">
+                      {cert.issuer}
+                    </p>
+
+                    <p className="mt-3 text-xs font-semibold text-gray-400">
+                      {cert.issueDate || "발급일 없음"}
+                    </p>
+
+                    {cert.expiryDate && (
+                      <p className="mt-1 text-xs font-bold text-orange-500">
+                        {getExpiryText(cert.expiryDate)}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
             )}
-          </article>
-        ))}
-      </div>
-    )}
-  </section>
-)}
+          </section>
+        )}
 
         {screen === "upload" && (
           <section>
@@ -1226,9 +1319,7 @@ if (!user) {
                   </div>
 
                   <div>
-                    <p className="text-sm text-gray-500">
-                      발급번호
-                    </p>
+                    <p className="text-sm text-gray-500">발급번호</p>
                     <p className="mt-1 font-medium">
                       {selectedCertificate.certificateNumber || "-"}
                     </p>
@@ -1421,7 +1512,7 @@ if (!user) {
               </div>
             )}
           </section>
-               )}
+        )}
 
         {(screen === "home" || screen === "vault" || screen === "detail") && (
           <>
