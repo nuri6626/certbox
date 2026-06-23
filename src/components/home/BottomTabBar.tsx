@@ -1,18 +1,39 @@
-import Link from "next/link";
+"use client";
 
-type ScreenType = "home" | "upload" | "result" | "detail" | "schedule" | "vault";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+type ScreenType =
+  | "home"
+  | "upload"
+  | "result"
+  | "detail"
+  | "schedule"
+  | "vault";
 
 type Props = {
-  activeTab: "home" | "vault" | "calendar" | "community" | "benefits" | "mypage";
+  activeTab:
+    | "home"
+    | "vault"
+    | "calendar"
+    | "community"
+    | "benefits"
+    | "mypage";
   setScreen?: (screen: ScreenType) => void;
 };
 
 export default function BottomTabBar({ activeTab, setScreen }: Props) {
+  const [currentTab, setCurrentTab] = useState<Props["activeTab"]>(activeTab);
+
+  useEffect(() => {
+    setCurrentTab(activeTab);
+  }, [activeTab]);
+
   const iconClass = "h-[19px] w-[19px]";
 
   const itemClass = (tab: Props["activeTab"]) =>
-    `flex flex-col items-center justify-center gap-1 ${
-      activeTab === tab ? "text-gray-950" : "text-gray-400"
+    `flex flex-col items-center justify-center gap-1 transition-colors ${
+      currentTab === tab ? "text-gray-950" : "text-gray-400"
     }`;
 
   return (
@@ -21,6 +42,8 @@ export default function BottomTabBar({ activeTab, setScreen }: Props) {
         <Link
           href="/"
           onClick={(e) => {
+            setCurrentTab("home");
+
             if (setScreen) {
               e.preventDefault();
               setScreen("home");
@@ -28,7 +51,13 @@ export default function BottomTabBar({ activeTab, setScreen }: Props) {
           }}
           className={itemClass("home")}
         >
-          <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2.2">
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+          >
             <path d="M4.5 11.5 12 5.5l7.5 6V20a1 1 0 0 1-1 1H15v-5.5H9V21H5.5a1 1 0 0 1-1-1v-8.5Z" />
           </svg>
           <span>홈</span>
@@ -37,6 +66,8 @@ export default function BottomTabBar({ activeTab, setScreen }: Props) {
         <Link
           href="/?tab=vault"
           onClick={(e) => {
+            setCurrentTab("vault");
+
             if (setScreen) {
               e.preventDefault();
               setScreen("vault");
@@ -44,22 +75,48 @@ export default function BottomTabBar({ activeTab, setScreen }: Props) {
           }}
           className={itemClass("vault")}
         >
-          <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" />
           </svg>
           <span>보관함</span>
         </Link>
 
-        <Link href="/schedule" className={itemClass("calendar")}>
-          <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2">
+        <Link
+          href="/schedule"
+          onClick={() => setCurrentTab("calendar")}
+          className={itemClass("calendar")}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <rect x="4.5" y="5.5" width="15" height="14" rx="2.5" />
             <path d="M8 3.5v4M16 3.5v4M4.5 10h15" />
           </svg>
           <span>캘린더</span>
         </Link>
 
-        <Link href="/community" className={itemClass("community")}>
-          <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2">
+        <Link
+          href="/community"
+          onClick={() => setCurrentTab("community")}
+          className={itemClass("community")}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <circle cx="9" cy="8" r="3" />
             <circle cx="17" cy="10" r="2.5" />
             <path d="M4 20a5 5 0 0 1 10 0" />
@@ -68,19 +125,39 @@ export default function BottomTabBar({ activeTab, setScreen }: Props) {
           <span>커뮤니티</span>
         </Link>
 
-        <Link href="/benefits" className={itemClass("benefits")}>
-  <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M20 12v8H4v-8" />
-    <path d="M2 7h20v5H2z" />
-    <path d="M12 7v13" />
-    <path d="M12 7H8.5A2.5 2.5 0 1 1 12 4.5V7Z" />
-    <path d="M12 7h3.5A2.5 2.5 0 1 0 12 4.5V7Z" />
-  </svg>
-  <span>혜택</span>
-</Link>
+        <Link
+          href="/benefits"
+          onClick={() => setCurrentTab("benefits")}
+          className={itemClass("benefits")}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M20 12v8H4v-8" />
+            <path d="M2 7h20v5H2z" />
+            <path d="M12 7v13" />
+            <path d="M12 7H8.5A2.5 2.5 0 1 1 12 4.5V7Z" />
+            <path d="M12 7h3.5A2.5 2.5 0 1 0 12 4.5V7Z" />
+          </svg>
+          <span>혜택</span>
+        </Link>
 
-        <Link href="/mypage" className={itemClass("mypage")}>
-          <svg viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="2">
+        <Link
+          href="/mypage"
+          onClick={() => setCurrentTab("mypage")}
+          className={itemClass("mypage")}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <circle cx="12" cy="8" r="3.5" />
             <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
           </svg>

@@ -215,3 +215,25 @@ export const getRankingProfiles = async () => {
 
   return data as Profile[];
 };
+
+export const spendPoint = async (
+  userId: string,
+  currentPoint: number,
+  amount: number,
+) => {
+  const nextPoint = Math.max(currentPoint - amount, 0);
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      point: nextPoint,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  return data as Profile;
+};

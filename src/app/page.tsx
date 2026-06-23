@@ -5,8 +5,10 @@ import {
   addXp,
   getLevelTitle,
   getNextLevelXp,
+  addAttendanceReward,
   type Profile,
 } from "../lib/profiles";
+import { getPosts, type CommunityPost } from "../lib/community";
 import BottomTabBar from "../components/home/BottomTabBar";
 import CareerHome from "../components/home/CareerHome";
 import CertificateList from "../components/certificate/CertificateList";
@@ -21,7 +23,8 @@ import type { Exam } from "../types/exam";
 import { supabase } from "../lib/supabase";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { hasAttendedToday } from "../lib/attendance";
+import { createPointLog } from "../lib/pointLogs";
+import { createAttendance, hasAttendedToday } from "../lib/attendance";
 
 const mockCertificates: Certificate[] = [];
 
@@ -62,6 +65,9 @@ export default function Home() {
   const [form, setForm] = useState(mockOcrResult);
   const [certificates, setCertificates] =
     useState<Certificate[]>(mockCertificates);
+  const [popularCommunityPosts, setPopularCommunityPosts] = useState<
+    CommunityPost[]
+  >([]);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCertificate, setSelectedCertificate] =
@@ -105,6 +111,19 @@ export default function Home() {
     try {
       const data = await getCertificates(user.id);
       setCertificates(data);
+
+      const communityPosts = await getPosts();
+
+      const sortedPopularPosts = communityPosts
+        .sort((a, b) => {
+          const aScore = (a.likes || 0) + (a.comments || 0);
+          const bScore = (b.likes || 0) + (b.comments || 0);
+
+          return bScore - aScore;
+        })
+        .slice(0, 3);
+
+      setPopularCommunityPosts(sortedPopularPosts);
     } catch (error) {
       console.error("불러오기 실패:", error);
     }
@@ -265,6 +284,45 @@ export default function Home() {
     setCertificates([]);
     setSelectedCertificate(null);
     setScreen("home");
+  };
+
+  const handleHomeAttendance = async () => {
+    if (!homeUser || !homeProfile) return;
+
+    if (homeAttendedToday) {
+      alert("오늘은 이미 출석했어요.");
+      return;
+    }
+
+    try {
+      await createAttendance(homeUser.id);
+
+      const rewardResult = await addAttendanceReward({
+        userId: homeUser.id,
+        currentXp: homeProfile.xp,
+        currentPoint: homeProfile.point,
+        currentStreak: homeProfile.streak,
+        xpAmount: 1,
+        pointAmount: 1,
+      });
+
+      setHomeProfile(rewardResult.profile);
+      setHomeAttendedToday(true);
+
+      await createPointLog({
+        userId: homeUser.id,
+        amount: rewardResult.totalPointAmount,
+        reason:
+          rewardResult.bonusPoint > 0
+            ? `${rewardResult.nextStreak}일 연속 출석 보너스`
+            : "출석 체크",
+      });
+
+      alert("출석 완료! +1 XP / +1 포인트 획득!");
+    } catch (error) {
+      console.error(error);
+      alert("출석체크 실패");
+    }
   };
 
   const handleFile = (file: File | undefined) => {
@@ -791,75 +849,11 @@ export default function Home() {
       <section className="mx-auto max-w-md">
         {screen === "home" && (
           <>
-            <section className="mb-5 rounded-3xl bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-violet-500">
-                    오늘의 커리어스
-                  </p>
-                  <h2 className="mt-1 text-xl font-extrabold text-gray-900">
-                    {homeProfile?.avatar_emoji || "🔥"}{" "}
-                    {homeProfile?.nickname ||
-                      homeUser?.email?.split("@")[0] ||
-                      "커리어스 유저"}
-                  </h2>
-                </div>
-
-                <div className="rounded-2xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-600">
-                  Lv.{homeProfile?.level || 1}
-                </div>
-              </div>
-
-              <p className="mb-4 text-sm font-semibold text-gray-500">
-                {getLevelTitle(homeProfile?.level || 1)}
-              </p>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-2xl bg-gray-50 p-3 text-center">
-                  <p className="text-lg font-extrabold text-gray-900">
-                    {homeProfile?.xp || 0}
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-gray-400">
-                    XP
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-gray-50 p-3 text-center">
-                  <p className="text-lg font-extrabold text-gray-900">
-                    {homeProfile?.point || 0}
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-gray-400">
-                    포인트
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-gray-50 p-3 text-center">
-                  <p className="text-lg font-extrabold text-gray-900">
-                    {homeProfile?.streak || 0}일
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-gray-400">
-                    연속출석
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`mt-4 rounded-2xl px-4 py-3 text-center text-sm font-bold ${
-                  homeAttendedToday
-                    ? "bg-violet-50 text-violet-600"
-                    : "bg-gray-900 text-white"
-                }`}
-              >
-                {homeAttendedToday
-                  ? "오늘 출석 완료 ✅"
-                  : "오늘 아직 출석 전이에요"}
-              </div>
-            </section>
-
             <CareerHome
               certificates={certificates}
               filteredCertificates={filteredCertificates}
               upcomingExamEvents={upcomingExamEvents}
+              popularCommunityPosts={popularCommunityPosts}
               getExpiryText={getExpiryText}
               getDdayText={getDdayText}
               searchTerm={searchTerm}
@@ -868,6 +862,8 @@ export default function Home() {
               setSelectedCertificate={setSelectedCertificate}
               setIsEditing={setIsEditing}
               handleLogout={handleLogout}
+              homeAttendedToday={homeAttendedToday}
+              handleHomeAttendance={handleHomeAttendance}
             />
           </>
         )}
