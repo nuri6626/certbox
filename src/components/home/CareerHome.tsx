@@ -1,8 +1,16 @@
 import type { Certificate } from "../../types/certificate";
 import type { CommunityPost } from "../../lib/community";
+import { getCompletedGoals, getGoals, type Goal } from "../../lib/goals";
+import { getBadges } from "../../lib/badges";
 
 type CareerHomeProps = {
   certificates: Certificate[];
+
+  badgePreview?: {
+    emoji: string;
+    title: string;
+  }[];
+
   filteredCertificates: Certificate[];
   homeAttendedToday: boolean;
   handleHomeAttendance: () => void;
@@ -152,6 +160,7 @@ const Icon = {
 
 export default function CareerHome({
   certificates,
+  badgePreview = [],
   filteredCertificates,
   upcomingExamEvents,
   popularCommunityPosts,
@@ -541,15 +550,87 @@ export default function CareerHome({
         </div>
       </section>
 
-      <section className="mb-8 rounded-[28px] bg-violet-100 p-5 shadow-sm">
-        <p className="text-sm font-semibold text-gray-950">
-          AI가 추천하는
-          <br />
-          맞춤 자격증과 학습 플랜
-        </p>
-        <button className="mt-4 rounded-full bg-gray-950 px-5 py-2 text-sm font-bold text-white">
-          추천 받기
-        </button>
+      <section className="mb-8 rounded-[28px] bg-gradient-to-r from-cyan-50 to-violet-100 p-5 shadow-sm">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg">
+            ✦
+          </div>
+
+          <div>
+            <h2 className="text-lg font-extrabold text-gray-900">
+              AI로 나에게 맞는 자격증을 찾아보세요
+            </h2>
+            <p className="mt-1 text-sm font-medium text-gray-600">
+              내 보유 자격증과 목표를 바탕으로 커리어 방향을 추천해드려요.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <button
+            onClick={() => (window.location.href = "/ai")}
+            className="rounded-3xl bg-white px-5 py-4 text-left text-sm font-extrabold text-gray-900 shadow-sm"
+          >
+            나에게 맞는 자격증 추천해줘 ↗
+          </button>
+
+          <button
+            onClick={() => (window.location.href = "/ai")}
+            className="rounded-3xl bg-white px-5 py-4 text-left text-sm font-extrabold text-gray-900 shadow-sm"
+          >
+            보유 자격증으로 가능한 직무 알려줘 ↗
+          </button>
+
+          <button
+            onClick={() => (window.location.href = "/ai")}
+            className="rounded-3xl bg-white px-5 py-4 text-left text-sm font-extrabold text-gray-900 shadow-sm"
+          >
+            추천 자격증 채용공고 찾아줘 ↗
+          </button>
+        </div>
+      </section>
+
+      <section className="mb-8 rounded-[28px] bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-gray-400">커리어 뱃지</p>
+
+            <h2 className="mt-1 text-lg font-extrabold text-gray-900">
+              성장 뱃지를 수집해보세요
+            </h2>
+          </div>
+
+          <button
+            onClick={() => (window.location.href = "/badges")}
+            className="rounded-full bg-violet-50 px-3 py-2 text-xs font-bold text-violet-600"
+          >
+            전체 보기
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-3xl bg-gradient-to-r from-cyan-50 to-violet-100 p-4 text-center">
+            <div className="text-3xl">🏅</div>
+
+            <p className="mt-2 text-xs font-extrabold text-gray-900">
+              첫 자격증
+            </p>
+          </div>
+
+          <div className="rounded-3xl bg-gradient-to-r from-cyan-50 to-violet-100 p-4 text-center">
+            <div className="text-3xl">🎯</div>
+
+            <p className="mt-2 text-xs font-extrabold text-gray-900">첫 목표</p>
+          </div>
+
+          <div className="rounded-3xl bg-gradient-to-r from-cyan-50 to-violet-100 p-4 text-center">
+            <div className="text-3xl">🏆</div>
+
+            <p className="mt-2 text-xs font-extrabold text-gray-900">
+              목표 달성
+            </p>
+          </div>
+        </div>
       </section>
     </>
   );

@@ -10,6 +10,8 @@ export type Goal = {
   reward_point: number;
   is_completed: boolean;
   created_at: string;
+  verified_at: string | null;
+  verified_certificate_id: string | null;
 };
 
 export const getGoals = async (userId: string) => {
@@ -53,8 +55,8 @@ export const createGoal = async ({
       title,
       target_date: targetDate || null,
       progress: 0,
-      reward_xp: 100,
-      reward_point: 1000,
+      reward_xp: 50,
+      reward_point: 20,
       is_completed: false,
     })
     .select("*")
@@ -67,7 +69,7 @@ export const createGoal = async ({
 
 export const updateGoalProgress = async (
   goalId: string,
-  nextProgress: number
+  nextProgress: number,
 ) => {
   const { data, error } = await supabase
     .from("goals")
@@ -83,12 +85,17 @@ export const updateGoalProgress = async (
   return data as Goal;
 };
 
-export const completeGoal = async (goalId: string) => {
+export const completeGoal = async (
+  goalId: string,
+  certificateId?: string | number,
+) => {
   const { data, error } = await supabase
     .from("goals")
     .update({
       progress: 100,
       is_completed: true,
+      verified_at: new Date().toISOString(),
+      verified_certificate_id: certificateId ? String(certificateId) : null,
     })
     .eq("id", goalId)
     .select("*")

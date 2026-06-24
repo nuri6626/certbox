@@ -29,14 +29,15 @@ export const awardCommunityXp = async ({
   const currentPoints = profile?.point || 0;
 
   const nextXp = currentXp + xp;
-  const nextPoints = currentPoints + xp;
+  const pointReward = Math.max(1, Math.floor(xp / 5));
+  const nextPoint = currentPoints + pointReward;
   const nextLevel = getLevelByXp(nextXp);
 
   const { data, error } = await supabase
     .from("profiles")
     .update({
       xp: nextXp,
-      points: nextPoints,
+      points: nextPoint,
       level: nextLevel,
     })
     .eq("id", userId)

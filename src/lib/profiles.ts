@@ -166,10 +166,10 @@ export const addAttendanceReward = async ({
 
   if (nextStreak === 30) {
     bonusXp = 50;
-    bonusPoint = 50;
+    bonusPoint = 10;
   } else if (nextStreak === 7) {
     bonusXp = 10;
-    bonusPoint = 10;
+    bonusPoint = 3;
   }
 
   const totalXpAmount = xpAmount + bonusXp;
