@@ -1,11 +1,18 @@
 "use client";
 
-import { getGoals, type Goal } from "../../lib/goals";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import BottomTabBar from "../../components/home/BottomTabBar";
+import { getGoals, type Goal } from "../../lib/goals";
 import { getProfile, spendPoint, type Profile } from "../../lib/profiles";
-import { getRaffleEvents, type RaffleEvent } from "../../lib/raffle";
+import {
+  createRaffleEntry,
+  getMyRaffleEntries,
+  getRaffleEvents,
+  increaseRaffleParticipantCount,
+  type RaffleEntry,
+  type RaffleEvent,
+} from "../../lib/raffle";
 import { supabase } from "../../lib/supabase";
 
 const learningAds = [
@@ -30,10 +37,11 @@ const learningAds = [
 ];
 
 export default function BenefitsPage() {
-  const [goals, setGoals] = useState<Goal[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [raffleEvents, setRaffleEvents] = useState<RaffleEvent[]>([]);
+  const [raffleEntries, setRaffleEntries] = useState<RaffleEntry[]>([]);
   const [toastMessage, setToastMessage] = useState("");
   const [isEnteringId, setIsEnteringId] = useState<string | null>(null);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
@@ -62,10 +70,14 @@ export default function BenefitsPage() {
       const profileData = await getProfile(currentUser.id, currentUser.email);
       setProfile(profileData);
 
-      const eventData = await getRaffleEvents();
-      setRaffleEvents(eventData);
       const goalData = await getGoals(currentUser.id);
       setGoals(goalData);
+
+      const eventData = await getRaffleEvents();
+      setRaffleEvents(eventData);
+
+      const entryData = await getMyRaffleEntries(currentUser.id);
+      setRaffleEntries(entryData);
     };
 
     loadPage();
@@ -80,8 +92,13 @@ export default function BenefitsPage() {
   };
 
   const reloadRaffles = async () => {
+    if (!user) return;
+
     const eventData = await getRaffleEvents();
     setRaffleEvents(eventData);
+
+    const entryData = await getMyRaffleEntries(user.id);
+    setRaffleEntries(entryData);
   };
 
   const handleEnterRaffle = async (event: RaffleEvent) => {
@@ -114,24 +131,16 @@ export default function BenefitsPage() {
 
       setProfile(updatedProfile);
 
-      const { error: entryError } = await supabase
-        .from("raffle_entries")
-        .insert({
-          event_id: event.id,
-          user_id: user.id,
-          used_point: event.entry_point,
-        });
+      await createRaffleEntry({
+        eventId: event.id,
+        userId: user.id,
+        usedPoint: event.entry_point,
+      });
 
-      if (entryError) throw entryError;
-
-      const { error: eventError } = await supabase
-        .from("raffle_events")
-        .update({
-          participant_count: event.participant_count + 1,
-        })
-        .eq("id", event.id);
-
-      if (eventError) throw eventError;
+      await increaseRaffleParticipantCount({
+        eventId: event.id,
+        nextParticipantCount: event.participant_count + 1,
+      });
 
       await reloadRaffles();
 
@@ -143,6 +152,31 @@ export default function BenefitsPage() {
       setIsEnteringId(null);
     }
   };
+
+  const getEntryCountByEventId = (eventId: string) => {
+    return raffleEntries.filter((entry) => entry.event_id === eventId).length;
+  };
+
+  const getUsedPointByEventId = (eventId: string) => {
+    return raffleEntries
+      .filter((entry) => entry.event_id === eventId)
+      .reduce((sum, entry) => sum + entry.used_point, 0);
+  };
+
+  const totalEntryCount = raffleEntries.length;
+
+  const totalUsedPoint = raffleEntries.reduce(
+    (sum, entry) => sum + entry.used_point,
+    0,
+  );
+
+  const myEntrySummary = raffleEvents
+    .map((event) => ({
+      event,
+      count: getEntryCountByEventId(event.id),
+      usedPoint: getUsedPointByEventId(event.id),
+    }))
+    .filter((item) => item.count > 0);
 
   return (
     <main className="relative min-h-screen bg-[#F6F7F9] pb-32">
@@ -182,6 +216,52 @@ export default function BenefitsPage() {
             포인트는 바로 교환되지 않고, 이번 달 드로우 응모에 사용돼요. 목표
             인증으로 얻은 포인트일수록 더 가치 있게 활용할 수 있어요.
           </p>
+        </section>
+
+        <section className="mb-6 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => (window.location.href = "/raffles")}
+            className="rounded-3xl bg-white p-5 text-left shadow-sm"
+          >
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-50 to-violet-100 text-2xl">
+              🎟️
+            </div>
+
+            <p className="text-sm font-bold text-gray-400">내 기록</p>
+            <h2 className="mt-1 text-base font-extrabold text-gray-900">
+              응모 내역 보기
+            </h2>
+          </button>
+
+          <button
+            onClick={() => (window.location.href = "/raffles/winners")}
+            className="rounded-3xl bg-white p-5 text-left shadow-sm"
+          >
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-50 to-violet-100 text-2xl">
+              🏆
+            </div>
+
+            <p className="text-sm font-bold text-gray-400">결과 확인</p>
+            <h2 className="mt-1 text-base font-extrabold text-gray-900">
+              당첨 발표 보기
+            </h2>
+          </button>
+        </section>
+
+        <section className="mb-6">
+          <button
+            onClick={() => (window.location.href = "/raffles/rules")}
+            className="w-full rounded-3xl bg-white p-5 text-left shadow-sm"
+          >
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-50 to-violet-100 text-2xl">
+              📘
+            </div>
+
+            <p className="text-sm font-bold text-gray-400">이용 안내</p>
+            <h2 className="mt-1 text-base font-extrabold text-gray-900">
+              드로우 응모 기준 확인하기
+            </h2>
+          </button>
         </section>
 
         <section className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
@@ -291,6 +371,64 @@ export default function BenefitsPage() {
           )}
         </section>
 
+        <section className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-gray-400">내 응모 현황</p>
+              <h2 className="mt-1 text-lg font-extrabold text-gray-900">
+                이번 달 {totalEntryCount}회 응모
+              </h2>
+            </div>
+
+            <button
+              onClick={() => (window.location.href = "/raffles")}
+              className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-600"
+            >
+              자세히
+            </button>
+          </div>
+
+          {myEntrySummary.length === 0 ? (
+            <div className="rounded-2xl bg-gray-50 p-5 text-center">
+              <div className="text-3xl">🎟️</div>
+              <p className="mt-2 text-sm font-bold text-gray-500">
+                아직 응모한 드로우가 없어요.
+              </p>
+              <p className="mt-1 text-xs leading-5 text-gray-400">
+                포인트를 모아 이번 달 드로우에 응모해보세요.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {myEntrySummary.map(({ event, count, usedPoint }) => (
+                <div
+                  key={event.id}
+                  className="flex items-center justify-between rounded-2xl bg-gray-50 px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-xl">
+                      {event.image_emoji}
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">
+                        {event.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {count}회 응모
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-bold text-violet-600">
+                    {usedPoint}P
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="mb-6">
           <div className="mb-3 flex items-center justify-between">
             <div>
@@ -313,72 +451,94 @@ export default function BenefitsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {raffleEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="rounded-3xl bg-white p-5 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-50 to-violet-100 text-2xl">
-                        {event.image_emoji}
-                      </div>
+              {raffleEvents.map((event) => {
+                const myEntryCount = getEntryCountByEventId(event.id);
 
-                      <div>
-                        <p className="text-lg font-extrabold text-gray-900">
-                          {event.title}
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-gray-500">
-                          {event.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span className="shrink-0 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-600">
-                      {event.entry_point}P
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-gray-50 p-4 text-center">
-                      <p className="text-xs font-bold text-gray-400">
-                        현재 참여
-                      </p>
-                      <p className="mt-1 text-lg font-extrabold text-gray-900">
-                        {event.participant_count}명
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-gray-50 p-4 text-center">
-                      <p className="text-xs font-bold text-gray-400">
-                        당첨 인원
-                      </p>
-                      <p className="mt-1 text-lg font-extrabold text-gray-900">
-                        {event.winner_count}명
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleEnterRaffle(event)}
-                    disabled={
-                      isEnteringId === event.id ||
-                      (profile?.point || 0) < event.entry_point
-                    }
-                    className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold ${
-                      (profile?.point || 0) >= event.entry_point
-                        ? "bg-gray-900 text-white"
-                        : "bg-gray-200 text-gray-400"
-                    }`}
+                return (
+                  <div
+                    key={event.id}
+                    className="rounded-3xl bg-white p-5 shadow-sm"
                   >
-                    {isEnteringId === event.id
-                      ? "응모 중..."
-                      : (profile?.point || 0) >= event.entry_point
-                        ? "응모하기"
-                        : "포인트 부족"}
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-50 to-violet-100 text-2xl">
+                          {event.image_emoji}
+                        </div>
+
+                        <div>
+                          <p className="text-lg font-extrabold text-gray-900">
+                            {event.title}
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-gray-500">
+                            {event.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className="shrink-0 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-600">
+                        {event.entry_point}P
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl bg-gray-50 p-3 text-center">
+                        <p className="text-xs font-bold text-gray-400">
+                          현재 참여
+                        </p>
+                        <p className="mt-1 text-base font-extrabold text-gray-900">
+                          {event.participant_count}명
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-gray-50 p-3 text-center">
+                        <p className="text-xs font-bold text-gray-400">
+                          당첨 인원
+                        </p>
+                        <p className="mt-1 text-base font-extrabold text-gray-900">
+                          {event.winner_count}명
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-gray-50 p-3 text-center">
+                        <p className="text-xs font-bold text-gray-400">
+                          내 응모
+                        </p>
+                        <p className="mt-1 text-base font-extrabold text-violet-600">
+                          {myEntryCount}회
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        (window.location.href = `/raffles/${event.id}`)
+                      }
+                      className="mt-4 w-full rounded-2xl bg-violet-50 px-4 py-3 text-sm font-bold text-violet-600"
+                    >
+                      자세히 보기
+                    </button>
+
+                    <button
+                      onClick={() => handleEnterRaffle(event)}
+                      disabled={
+                        isEnteringId === event.id ||
+                        (profile?.point || 0) < event.entry_point
+                      }
+                      className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold ${
+                        (profile?.point || 0) >= event.entry_point
+                          ? "bg-gray-900 text-white"
+                          : "bg-gray-200 text-gray-400"
+                      }`}
+                    >
+                      {isEnteringId === event.id
+                        ? "응모 중..."
+                        : (profile?.point || 0) >= event.entry_point
+                          ? "응모하기"
+                          : "포인트 부족"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>

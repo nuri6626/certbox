@@ -266,17 +266,20 @@ export default function Home() {
   };
 
   const handleOAuthLogin = async (provider: "google" | "kakao") => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
+  const redirectUrl = `${window.location.origin}/`;
 
-    if (error) {
-      alert(error.message);
-    }
-  };
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: redirectUrl,
+    },
+  });
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+  }
+};
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

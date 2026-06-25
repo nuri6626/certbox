@@ -451,6 +451,7 @@ export default function CareerHome({
 
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-extrabold text-gray-950">바로가기</h2>
+
         <div className="grid grid-cols-2 gap-4">
           {[
             [
@@ -481,6 +482,20 @@ export default function CareerHome({
               "text-orange-500",
               "bg-orange-50",
             ],
+            [
+              "프로필",
+              "내 커리어 대시보드를 확인해요",
+              Icon.userSmall,
+              "text-gray-700",
+              "bg-gray-100",
+            ],
+            [
+              "혜택",
+              "포인트로 드로우에 응모해요",
+              Icon.spark,
+              "text-violet-500",
+              "bg-violet-50",
+            ],
           ].map(([title, desc, icon, color, bg]) => (
             <button
               key={String(title)}
@@ -493,6 +508,10 @@ export default function CareerHome({
                   window.location.href = "/community";
                 } else if (title === "AI 추천") {
                   window.location.href = "/ai";
+                } else if (title === "프로필") {
+                  window.location.href = "/profile";
+                } else if (title === "혜택") {
+                  window.location.href = "/benefits";
                 }
               }}
               className={`rounded-[28px] ${bg} p-5 text-left shadow-sm`}
